@@ -263,7 +263,7 @@ static struct AtmelSPIMux spi1_cs15_dev[] = {
 
 
 // SPI CS enable struct
-// Pin, active state, disabled?  Disabled by default. 
+// Pin, active state, disabled?  Disabled by default.
 static struct AtmelSPIMuxEnable spi_en = {
    AT91_PIN_PA22, 0, 0
 };
@@ -272,7 +272,7 @@ static struct AtmelSPIMuxEnable spi_en = {
 // Ready pin, asserted ready pin state, internal pullup enabled or disabled
 // TODO EXAMPLE ONLY: Change for development or flight configurations as needed
 static struct AtmelSPIMuxDevReady spi1_dev_rdy = {
-   AT91_PIN_PA25,  // Atmel pin 
+   AT91_PIN_PA25,  // Atmel pin
                1,  // Ready state for slave is high
                1   // Enable internal pullup
 };
@@ -367,7 +367,7 @@ static struct spi_board_info r9_rtc_spidev = {
 		.chip_select	= 8,
       .controller_data = &spi1_cs8_data,
                 .platform_data = &plat_data_ds3234,
-		.max_speed_hz	= 1 * 1000 * 1000, 
+		.max_speed_hz	= 1 * 1000 * 1000,
 		.bus_num	= 1,
 };
 
@@ -385,7 +385,7 @@ static struct spi_board_info r9_xra_spidev = {
 #define SPI0_8_IDX 8
 
 static struct spi_board_info ek_spi_devices[] = {
-	{	//default device 1.0 
+	{	//default device 1.0
 		.modalias	= "spidev",
 		.chip_select	= 0,
       .controller_data = &spi1_cs0_data,
@@ -393,7 +393,7 @@ static struct spi_board_info ek_spi_devices[] = {
 		.bus_num	= 1,
       .mode = SPI_MODE_0,
 	},
-	{	//default device 1.1 
+	{	//default device 1.1
 		.modalias	= "spidev",
 		.chip_select	= 1,
       .controller_data = &spi1_cs1_data,
@@ -401,35 +401,35 @@ static struct spi_board_info ek_spi_devices[] = {
 		.bus_num	= 1,
 		.mode = SPI_MODE_3,
 	},
-	{	//default device 1.2 
+	{	//default device 1.2
 		.modalias	= "spidev",
 		.chip_select	= 2,
       .controller_data = &spi1_cs2_data,
 		.max_speed_hz	= 2 * 1000 * 1000,
 		.bus_num	= 1,
 	},
-	{	//default device 1.3 
+	{	//default device 1.3
 		.modalias	= "spidev",
 		.chip_select	= 3,
       .controller_data = &spi1_cs3_data,
 		.max_speed_hz	= 2 * 1000 * 1000,
 		.bus_num	= 1,
 	},
-	{	//default device 1.4 
+	{	//default device 1.4
 		.modalias	= "spidev",
 		.chip_select	= 4,
       .controller_data = &spi1_cs4_data,
 		.max_speed_hz	= 2 * 1000 * 1000,
 		.bus_num	= 1,
 	},
-	{	//default device 1.5 
+	{	//default device 1.5
 		.modalias	= "spidev",
 		.chip_select	= 5,
       .controller_data = &spi1_cs5_data,
 		.max_speed_hz	= 2 * 1000 * 1000,
 		.bus_num	= 1,
 	},
-	{	//default device 1.6 
+	{	//default device 1.6
 		.modalias	= "spidev",
 		.chip_select	= 6,
       .controller_data = &spi1_cs6_data,
@@ -445,56 +445,56 @@ static struct spi_board_info ek_spi_devices[] = {
 		.bus_num	= 1,
       .irq = 30, // Handled w/physical IRQ line
 	},
-	{	//default device 1.0 
+	{	//default device 1.0
 		.modalias	= "ds3234",
 		.chip_select	= 8,
       .controller_data = &spi1_cs8_data,
-		.max_speed_hz	= 1 * 1000 * 1000, 
+		.max_speed_hz	= 1 * 1000 * 1000,
 		.bus_num	= 1,
 	},
-	{	//default device 1.0 
+	{	//default device 1.0
 		.modalias	= "spidev",
 		.chip_select	= 9,
       .controller_data = &spi1_cs9_data,
 		.max_speed_hz	= 2 * 1000 * 1000,
 		.bus_num	= 1,
 	},
-	{	//default device 1.0 
+	{	//default device 1.0
 		.modalias	= "spidev",
 		.chip_select	= 10,
       .controller_data = &spi1_cs10_data,
 		.max_speed_hz	= 1 * 1000 * 1000,
 		.bus_num	= 1,
 	},
-	{	//default device 1.0 
+	{	//default device 1.0
 		.modalias	= "spidev",
 		.chip_select	= 11,
       .controller_data = &spi1_cs11_data,
 		.max_speed_hz	= 1 * 1000 * 1000,
 		.bus_num	= 1,
 	},
-	{	//default device 1.0 
+	{	//default device 1.0
 		.modalias	= "spidev",
 		.chip_select	= 12,
       .controller_data = &spi1_cs12_data,
 		.max_speed_hz	= 1 * 1000 * 1000,
 		.bus_num	= 1,
 	},
-	{	//default device 1.0 
+	{	//default device 1.0
 		.modalias	= "spidev",
 		.chip_select	= 13,
       .controller_data = &spi1_cs13_data,
 		.max_speed_hz	= 1 * 1000 * 1000,
 		.bus_num	= 1,
 	},
-	{	//default device 1.0 
+	{	//default device 1.0
 		.modalias	= "spidev",
 		.chip_select	= 14,
       .controller_data = &spi1_cs14_data,
 		.max_speed_hz	= 1 * 1000 * 1000,
 		.bus_num	= 1,
 	},
-	{	//default device 1.0 
+	{	//default device 1.0
 		.modalias	= "spidev",
 		.chip_select	= 15,
       .controller_data = &spi1_cs15_data,
@@ -502,7 +502,7 @@ static struct spi_board_info ek_spi_devices[] = {
 		.bus_num	= 1,
 	},
 //#if !(defined(CONFIG_MMC_ATMELMCI) || defined(CONFIG_MMC_AT91))
-	{	// Numonyx PCM chip primary, mtd6 
+	{	// Numonyx PCM chip primary, mtd6
 		// .modalias	= "mtd_dataflash",
 		.modalias	= "spidev",
 		.chip_select	= 0,
@@ -511,7 +511,7 @@ static struct spi_board_info ek_spi_devices[] = {
 		.bus_num	= 0,
 		.mode = SPI_MODE_0,
 	},
-	{	// Numonyx PCM chip secondary, mtd7 
+	{	// Numonyx PCM chip secondary, mtd7
 		// .modalias	= "mtd_dataflash",
 		.modalias	= "spidev",
 		.chip_select	= 1,
@@ -522,7 +522,7 @@ static struct spi_board_info ek_spi_devices[] = {
 	},
 	/*
 #if defined(CONFIG_MTD_AT91_DATAFLASH_CARD)
-	{	DataFlash card 
+	{	DataFlash card
 		.modalias	= "mtd_dataflash",
 		.chip_select	= 0,
 		.max_speed_hz	= 15 * 1000 * 1000,
@@ -609,7 +609,7 @@ static void __init ek_add_device_nand(void)
    // Some older boards have complete NAND failure.  This check doesn't
    // register the NAND device on those boards, in the hope they can still
    // be partially useful.
-   if (system_serial_high == 0 && (system_serial_low == 0x2108 || 
+   if (system_serial_high == 0 && (system_serial_low == 0x2108 ||
                                    system_serial_low == 0x5109)) {
       printk("**** Skipping NAND device!\n");
       return;
@@ -663,7 +663,7 @@ static struct at91_mmc_data __initdata ek_mmc_data = {
  */
 /*
 static struct gpio_led ek_leds[] = {
-	{	// "bottom" led, green, userled1 to be defined 
+	{	// "bottom" led, green, userled1 to be defined
 		.name			= "ds5",
 		.gpio			= AT91_PIN_PB8,
 		.active_low		= 1,
@@ -696,7 +696,7 @@ static struct gpio_keys_button ek_buttons[] = {
 		.active_low	= 1,
 		.wakeup		= 1,
 	}
-}; 
+};
 
 static struct gpio_keys_platform_data ek_button_data = {
 	.buttons	= ek_buttons,
@@ -819,19 +819,19 @@ static struct i2c_board_info __initdata ek_i2c_devices_rev3[] = {
 		.platform_data = &pca9535
 	},
    /*
-    *  AX5042 GPIO expander (regulator check) 
+    *  AX5042 GPIO expander (regulator check)
     */
 	{
 	    I2C_BOARD_INFO("pca9555", 0x20),
 		.platform_data = &ax5042_pca9535
 	},
    /*
-    *  PCA9550 LED driver on top panel for magnetorquer 
+    *  PCA9550 LED driver on top panel for magnetorquer
     */
    /*
 	{
 	    I2C_BOARD_INFO("pca9550", 0x60),
-		.platform_data = NULL 
+		.platform_data = NULL
 	},
    */
 	/* Now mission specific {
@@ -842,7 +842,7 @@ static struct i2c_board_info __initdata ek_i2c_devices_rev3[] = {
 
 
 #if 0
-// Additional PolySat I2C devices.  Cannot be in the same ek_i2c_dev above. 
+// Additional PolySat I2C devices.  Cannot be in the same ek_i2c_dev above.
 static struct i2c_board_info __initdata ek_i2c_devices1[] = {
 	{   /* I2C-1 device.  See pins in at91sam9260_devices.c*/
        I2C_BOARD_INFO("i2c-1", 0x00),
@@ -850,7 +850,7 @@ static struct i2c_board_info __initdata ek_i2c_devices1[] = {
 };
 #endif
 
-// Additional PolySat I2C devices.  Cannot be in the same ek_i2c_dev above. 
+// Additional PolySat I2C devices.  Cannot be in the same ek_i2c_dev above.
 static struct i2c_board_info __initdata ek_i2c_devices_pl[] = {
 	{   /* I2C-2 device.  See pins in at91sam9260_devices.c*/
        I2C_BOARD_INFO("i2c-pl", 0x00),
@@ -870,7 +870,7 @@ static void __init ek_board_init(void)
 	/* Ethernet */
 	at91_add_device_eth(&ek_macb_data);
 	/* MMC */
-   //  Currently not needed for polysat proto. Commented 
+   //  Currently not needed for polysat proto. Commented
 #if defined(CONFIG_MMC_ATMELMCI) || defined(CONFIG_MMC_ATMELMCI_MODULE)
 	at91_add_device_mci(0, &ek_mmc_data);
 #else
@@ -893,7 +893,7 @@ static void __init ek_board_init(void)
 	   at91_add_device_i2c(ek_i2c_devices_rev3, ARRAY_SIZE(ek_i2c_devices_rev3));
 
       // COMM Daughter A uses diff regulator-ready pins b/w Revs
-      plat_data_axsem.regRdyIRQ = ax5042_pca9535.gpio_base + 5; 
+      plat_data_axsem.regRdyIRQ = ax5042_pca9535.gpio_base + 5;
       printk("\n\n *** Rev 3 or greater board init.\n\r");
    }
 
@@ -1054,10 +1054,10 @@ static void __init ek_board_init(void)
    // Set GPIO pins into GPIO and known state.
    at91_set_gpio_output(AT91_PIN_PA29, 0);
    at91_set_gpio_output(AT91_PIN_PB16, 0);
-   at91_set_gpio_output(AT91_PIN_PC6, 1);
+   at91_set_gpio_output(AT91_PIN_PC6, 0);
    at91_set_gpio_output(AT91_PIN_PC7, 0);
 
-   // Payload I2C device 
+   // Payload I2C device
 	at91_add_device_i2c(ek_i2c_devices_pl, ARRAY_SIZE(ek_i2c_devices_pl));
 }
 
