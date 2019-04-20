@@ -59,7 +59,7 @@
 #define XRA1405_REG_IFR     0x14    /* Input Filter Enable Register */
 
 /* Define more significative byte register position for each paramter */
-#define XRA1405_REG_GSR_MSB  XRA1405_REG_GSR+1 
+#define XRA1405_REG_GSR_MSB  XRA1405_REG_GSR+1
 #define XRA1405_REG_OCR_MSB  XRA1405_REG_OCR+1
 #define XRA1405_REG_PIR_MSB  XRA1405_REG_PIR+1
 #define XRA1405_REG_GCR_MSB  XRA1405_REG_GCR+1
@@ -201,7 +201,7 @@ static int xra1405_cache_regs(struct xra1405 *xra)
                 /* Store the 16bit value in the proper cache variable */
                 xra->cache[(i-1)/2] = (rx[0] << 8) | (tmp & 0x00FF);
                 /* Print out initial debug information */
-                dev_dbg(xra->chip.dev, "%s: Initial value for 0x%02X is 0x%04X\n", 
+                dev_dbg(xra->chip.dev, "%s: Initial value for 0x%02X is 0x%04X\n",
                         XRA1405_MODULE_NAME, ((i-1)/2 << 1), xra->cache[(i-1)/2]);
             }
         } else {
@@ -284,12 +284,12 @@ static int xra1405_direction_input(struct gpio_chip *chip, unsigned offset)
     mutex_lock(&xra->lock);
 
     /* Write the GPIO Configuration Register */
-    status = __xra1405_bit(xra, XRA1405_CACHE_GCR, offset, 1); 
+    status = __xra1405_bit(xra, XRA1405_CACHE_GCR, offset, 1);
     if (xra->irq_allocated) {
-        __xra1405_bit(xra, XRA1405_CACHE_REIR, offset, 1); 
-        __xra1405_bit(xra, XRA1405_CACHE_FEIR, offset, 1); 
-        __xra1405_bit(xra, XRA1405_CACHE_IFR, offset, 0); 
-        __xra1405_bit(xra, XRA1405_CACHE_IER, offset, 1); 
+        __xra1405_bit(xra, XRA1405_CACHE_REIR, offset, 1);
+        __xra1405_bit(xra, XRA1405_CACHE_FEIR, offset, 1);
+        __xra1405_bit(xra, XRA1405_CACHE_IFR, offset, 0);
+        __xra1405_bit(xra, XRA1405_CACHE_IER, offset, 1);
     }
 
     mutex_unlock(&xra->lock);
@@ -306,7 +306,7 @@ static int xra1405_get(struct gpio_chip *chip, unsigned offset)
     int status = 0;
 
     // printk("get\n");
-    
+
     if (offset > 7)
         reg++; // We need to read the next register instead
 
@@ -322,7 +322,7 @@ static int xra1405_get(struct gpio_chip *chip, unsigned offset)
                 xra->cache[XRA1405_CACHE_GSR] = (xra->cache[XRA1405_CACHE_GSR] & 0xFF00) | status;
             else
                   xra->cache[XRA1405_CACHE_GSR] = (status << 8) | (xra->cache[XRA1405_CACHE_GSR] & 0xFF);
-        
+
             status = !!(status & BIT(offset));
         }
     }
@@ -361,7 +361,7 @@ static int xra1405_direction_output(struct gpio_chip *chip, unsigned offset, int
 static void xra1405_set(struct gpio_chip *chip, unsigned offset, int value)
 {
     struct xra1405 *xra = container_of(chip, struct xra1405, chip);
-    
+
     mutex_lock(&xra->lock);
     // Send the value to the Output Control Register
     if (xra->cache[XRA1405_CACHE_GCR] & BIT(offset))
@@ -482,27 +482,27 @@ static int xra1405_irq_set_type (unsigned int irq, unsigned int type)
 
     set_irq_handler(irq, &handle_level_irq);
     if ((type & IRQ_TYPE_EDGE_BOTH) == IRQ_TYPE_EDGE_BOTH) {
-        __xra1405_bit(xra, XRA1405_CACHE_FEIR, pos, 1); 
-        __xra1405_bit(xra, XRA1405_CACHE_REIR, pos, 1); 
-        __xra1405_bit(xra, XRA1405_CACHE_IFR, pos, 0); 
+        __xra1405_bit(xra, XRA1405_CACHE_FEIR, pos, 1);
+        __xra1405_bit(xra, XRA1405_CACHE_REIR, pos, 1);
+        __xra1405_bit(xra, XRA1405_CACHE_IFR, pos, 0);
         // xra->cache[XRA1405_CACHE_REIR] &= ~BIT(pos);
         // xra->cache[XRA1405_CACHE_FEIR] &= ~BIT(pos);
         xra->irq_rise_mask |= BIT(pos);
         xra->irq_fall_mask |= BIT(pos);
         // printk("Setup %d RISING | FALLING\n", irq);
     } else if (type & IRQ_TYPE_EDGE_RISING) {
-        __xra1405_bit(xra, XRA1405_CACHE_FEIR, pos, 0); 
-        __xra1405_bit(xra, XRA1405_CACHE_REIR, pos, 1); 
-        __xra1405_bit(xra, XRA1405_CACHE_IFR, pos, 0); 
+        __xra1405_bit(xra, XRA1405_CACHE_FEIR, pos, 0);
+        __xra1405_bit(xra, XRA1405_CACHE_REIR, pos, 1);
+        __xra1405_bit(xra, XRA1405_CACHE_IFR, pos, 0);
         // xra->cache[XRA1405_CACHE_REIR] |= BIT(pos);
         // xra->cache[XRA1405_CACHE_FEIR] &= ~BIT(pos);
         xra->irq_rise_mask |= BIT(pos);
         xra->irq_fall_mask &= ~BIT(pos);
         // printk("Setup %d RISING\n", irq);
     } else if (type & IRQ_TYPE_EDGE_FALLING) {
-        __xra1405_bit(xra, XRA1405_CACHE_FEIR, pos, 1); 
-        __xra1405_bit(xra, XRA1405_CACHE_REIR, pos, 0); 
-        __xra1405_bit(xra, XRA1405_CACHE_IFR, pos, 0); 
+        __xra1405_bit(xra, XRA1405_CACHE_FEIR, pos, 1);
+        __xra1405_bit(xra, XRA1405_CACHE_REIR, pos, 0);
+        __xra1405_bit(xra, XRA1405_CACHE_IFR, pos, 0);
         // xra->cache[XRA1405_CACHE_FEIR] |= BIT(pos);
         // xra->cache[XRA1405_CACHE_REIR] &= ~BIT(pos);
         xra->irq_rise_mask &= ~BIT(pos);
@@ -511,10 +511,10 @@ static int xra1405_irq_set_type (unsigned int irq, unsigned int type)
     } else if (type & IRQ_TYPE_NONE) {
         /* Just to make the driver support the configuration, but the chip
          * doesn't have a NONE, maybe configure it as default? */
-        __xra1405_bit(xra, XRA1405_CACHE_IER, pos, 0); 
-        __xra1405_bit(xra, XRA1405_CACHE_FEIR, pos, 0); 
-        __xra1405_bit(xra, XRA1405_CACHE_REIR, pos, 0); 
-        __xra1405_bit(xra, XRA1405_CACHE_IFR, pos, 0); 
+        __xra1405_bit(xra, XRA1405_CACHE_IER, pos, 0);
+        __xra1405_bit(xra, XRA1405_CACHE_FEIR, pos, 0);
+        __xra1405_bit(xra, XRA1405_CACHE_REIR, pos, 0);
+        __xra1405_bit(xra, XRA1405_CACHE_IFR, pos, 0);
 
         // xra->cache[XRA1405_CACHE_FEIR] &= ~BIT(pos);
         // xra->cache[XRA1405_CACHE_REIR] &= ~BIT(pos);
@@ -534,7 +534,7 @@ static void xra1405_irq_enable(unsigned int irq)
     struct xra1405 *xra = (struct xra1405*)get_irq_chip_data(irq);
     int pos = irq - xra->chip.base;
 
-    __xra1405_bit(xra, XRA1405_CACHE_IER, pos, 1); 
+    __xra1405_bit(xra, XRA1405_CACHE_IER, pos, 1);
     // printk("_enable %d\n", pos);
 }
 
@@ -543,7 +543,7 @@ static void xra1405_irq_disable(unsigned int irq)
     struct xra1405 *xra = (struct xra1405*)get_irq_chip_data(irq);
     int pos = irq - xra->chip.base;
 
-    __xra1405_bit(xra, XRA1405_CACHE_IER, pos, 0); 
+    __xra1405_bit(xra, XRA1405_CACHE_IER, pos, 0);
     // printk("_disable %d\n", pos);
 }
 
@@ -559,21 +559,21 @@ static unsigned int xra1405_irq_startup(unsigned int irq)
     mutex_lock(&xra->lock);
     irq_was_allocated = xra->irq_allocated;
     xra->irq_allocated |= BIT(pos);
-    __xra1405_bit(xra, XRA1405_CACHE_GCR, pos, 1); 
+    __xra1405_bit(xra, XRA1405_CACHE_GCR, pos, 1);
 
     if (!irq_was_allocated) {
         for (i = 0; i < xra->chip.ngpio; i++) {
             if (xra->cache[XRA1405_CACHE_GCR] & BIT(i) &&
                                         !(xra->irq_allocated & BIT(i))) {
-                __xra1405_bit(xra, XRA1405_CACHE_REIR, i, 1); 
-                __xra1405_bit(xra, XRA1405_CACHE_FEIR, i, 1); 
-                __xra1405_bit(xra, XRA1405_CACHE_IFR, i, 0); 
-                __xra1405_bit(xra, XRA1405_CACHE_IER, i, 1); 
+                __xra1405_bit(xra, XRA1405_CACHE_REIR, i, 1);
+                __xra1405_bit(xra, XRA1405_CACHE_FEIR, i, 1);
+                __xra1405_bit(xra, XRA1405_CACHE_IFR, i, 0);
+                __xra1405_bit(xra, XRA1405_CACHE_IER, i, 1);
             }
         }
     }
 
-    __xra1405_bit(xra, XRA1405_CACHE_IER, pos, 1); 
+    __xra1405_bit(xra, XRA1405_CACHE_IER, pos, 1);
     xra->irq_soft_mask &= ~BIT(pos);
 
     mutex_unlock(&xra->lock);
@@ -593,15 +593,15 @@ static void xra1405_irq_shutdown(unsigned int irq)
     mutex_lock(&xra->lock);
     irq_was_allocated = xra->irq_allocated;
     xra->irq_allocated &= ~BIT(pos);
-    __xra1405_bit(xra, XRA1405_CACHE_IER, pos, 0); 
+    __xra1405_bit(xra, XRA1405_CACHE_IER, pos, 0);
 
     if (irq_was_allocated && !xra->irq_allocated) {
         for (i = 0; i < xra->chip.ngpio; i++) {
             if (xra->cache[XRA1405_CACHE_GCR] & BIT(i)) {
-                __xra1405_bit(xra, XRA1405_CACHE_REIR, i, 0); 
-                __xra1405_bit(xra, XRA1405_CACHE_FEIR, i, 0); 
-                __xra1405_bit(xra, XRA1405_CACHE_IFR, i, 0); 
-                __xra1405_bit(xra, XRA1405_CACHE_IER, i, 0); 
+                __xra1405_bit(xra, XRA1405_CACHE_REIR, i, 0);
+                __xra1405_bit(xra, XRA1405_CACHE_FEIR, i, 0);
+                __xra1405_bit(xra, XRA1405_CACHE_IFR, i, 0);
+                __xra1405_bit(xra, XRA1405_CACHE_IER, i, 0);
             }
         }
     }
@@ -626,17 +626,6 @@ static int xra1405_irq_setup(struct xra1405 *xra)
     struct gpio_chip *chip = &xra->chip;
     int err, irq, j;
 
-    // mutex_init(&xra->irq_lock);
-
-    err = request_irq(xra->irq, xra1405_irq,
-            IRQF_TRIGGER_LOW | IRQF_DISABLED, XRA1405_MODULE_NAME, xra);
-
-    if (err != 0) {
-        dev_err(chip->dev, "unable to request IRQ#%d: %d\n",
-                xra->irq, err);
-        return err;
-    }
-
     for (j = 0; j < xra->chip.ngpio; j++) {
         irq = xra->chip.base + j;
         set_irq_chip_data(irq, xra);
@@ -649,10 +638,18 @@ static int xra1405_irq_setup(struct xra1405 *xra)
 #endif
     }
 
+    err = request_irq(xra->irq, xra1405_irq,
+        IRQF_TRIGGER_LOW | IRQF_DISABLED, XRA1405_MODULE_NAME, xra);
+    if (err != 0) {
+        dev_err(chip->dev, "unable to request IRQ#%d: %d\n",
+                xra->irq, err);
+        return err;
+    }
+
     return 0;
 }
 
-static void xra1405_irq_teardown(struct xra1405 *xra)
+static void xra1405_irq_teardown(struct xra1405 *xra, int cleanup_irq)
 {
     unsigned int i;
     int irq;
@@ -668,7 +665,9 @@ static void xra1405_irq_teardown(struct xra1405 *xra)
      * IRQ #"
      */
 
-    free_irq(xra->irq, xra);
+    if (cleanup_irq) {
+        free_irq(xra->irq, xra);
+    }
 }
 
 static int xra1405_probe_one(struct xra1405 *xra, struct device *dev,
@@ -758,10 +757,9 @@ static int xra1405_probe_one(struct xra1405 *xra, struct device *dev,
     if (xra->irq) {
         status = xra1405_irq_setup(xra);
         if (status) {
-            if (status != -EINVAL)
-                xra1405_irq_teardown(xra);
+            xra1405_irq_teardown(xra, status != -EINVAL);
             goto fail;
-        } 
+        }
     }
 
 fail:
@@ -827,12 +825,12 @@ static int __devexit xra1405_remove(struct spi_device *spi)
     int status;
 
     if (xra->irq)
-        xra1405_irq_teardown(xra);
+        xra1405_irq_teardown(xra, 1);
 
     status = gpiochip_remove(&xra->chip);
     if (status == 0)
         kfree(xra);
-    
+
     return status;
 }
 
