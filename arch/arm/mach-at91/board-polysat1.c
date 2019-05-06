@@ -604,6 +604,17 @@ static struct sam9_smc_config __initdata ek_nand_smc_config = {
 	.tdf_cycles		= 3,
 };
 
+static int __init nandcs_setup(char *str)
+{
+    printk("NAND parameter is %s\n", str);
+    if (0 == strcmp("PC14", str))
+       ek_nand_data.enable_pin = AT91_PIN_PC14;
+    else if (0 == strcmp("PC10", str))
+       ek_nand_data.enable_pin = AT91_PIN_PC10;
+    return 1;
+}
+__setup("nandcs=", nandcs_setup);
+
 static void __init ek_add_device_nand(void)
 {
    // Some older boards have complete NAND failure.  This check doesn't
@@ -624,9 +635,9 @@ static void __init ek_add_device_nand(void)
 	/* configure chip-select 3 (NAND) */
 	sam9_smc_configure(3, &ek_nand_smc_config);
 
+   printk("Register NAND on %d\n", ek_nand_data.enable_pin);
 	at91_add_device_nand(&ek_nand_data);
 }
-
 
 /*
  * MCI (SD/MMC)
