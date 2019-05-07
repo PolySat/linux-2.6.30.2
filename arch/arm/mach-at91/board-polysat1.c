@@ -604,6 +604,17 @@ static struct sam9_smc_config __initdata ek_nand_smc_config = {
 	.tdf_cycles		= 3,
 };
 
+static int __init nandcs_setup(char *str)
+{
+    printk("NAND parameter is %s\n", str);
+    if (0 == strcmp("PC14", str))
+       ek_nand_data.enable_pin = AT91_PIN_PC14;
+    else if (0 == strcmp("PC10", str))
+       ek_nand_data.enable_pin = AT91_PIN_PC10;
+    return 1;
+}
+__setup("nandcs=", nandcs_setup);
+
 static void __init ek_add_device_nand(void)
 {
    // Some older boards have complete NAND failure.  This check doesn't
@@ -624,9 +635,9 @@ static void __init ek_add_device_nand(void)
 	/* configure chip-select 3 (NAND) */
 	sam9_smc_configure(3, &ek_nand_smc_config);
 
+   printk("Register NAND on %d\n", ek_nand_data.enable_pin);
 	at91_add_device_nand(&ek_nand_data);
 }
-
 
 /*
  * MCI (SD/MMC)
@@ -744,27 +755,30 @@ static struct pca953x_platform_data pca9535 = {
 	.invert		= 0,
 };
 
+#if 0
 static int ax5042_setup_nandcs(struct i2c_client *client,
     unsigned gpio, unsigned ngpio, void *context)
 {
    unsigned num = gpio + (uintptr_t)context;
 
-   at91_set_GPIO_periph(AT91_PIN_PC10, 0);
-   at91_set_B_periph(AT91_PIN_PC14, 0);
-   // at91_set_GPIO_periph(AT91_PIN_PC14, 0);
-   if (gpio_request(num, "NAND CS Switch") >= 0) {
-      gpio_direction_output(num, 0);
-      printk("NAND Switched to alternate CS line\n");
+   if (ek_nand_data.enable_pin == AT91_PIN_PC10) {
+      at91_set_GPIO_periph(AT91_PIN_PC10, 0);
+      at91_set_B_periph(AT91_PIN_PC14, 0);
+      // at91_set_GPIO_periph(AT91_PIN_PC14, 0);
+      if (gpio_request(num, "NAND CS Switch") >= 0) {
+         gpio_direction_output(num, 0);
+         printk("NAND Switched to alternate CS line\n");
+      }
    }
-
    return 0;
 }
+#endif
 
 static struct pca953x_platform_data ax5042_pca9535 = {
 	.gpio_base	= 220,
 	.invert		= 0,
-	.context	= (void*)8,
-	.setup		= &ax5042_setup_nandcs,
+//	.context	= (void*)8,
+//	.setup		= &ax5042_setup_nandcs,
 };
 
 static struct i2c_board_info __initdata ek_i2c_devices[] = {
@@ -957,6 +971,9 @@ static void __init ek_board_init(void)
    at91_set_B_periph(AT91_PIN_PC15, 0);
 
    /* NAND */
+   at91_set_GPIO_periph(ek_nand_data.enable_pin, 0);
+   if (ek_nand_data.enable_pin == AT91_PIN_PC10)
+      at91_set_B_periph(AT91_PIN_PC14, 0);
    ek_add_device_nand();
 
 #if 0
