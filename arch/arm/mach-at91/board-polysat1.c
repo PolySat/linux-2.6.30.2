@@ -405,7 +405,7 @@ static struct spi_board_info ek_spi_devices[] = {
 		.modalias	= "spidev",
 		.chip_select	= 2,
       .controller_data = &spi1_cs2_data,
-		.max_speed_hz	= 2 * 1000 * 1000,
+		.max_speed_hz	= 1 * 1000 * 1000,
 		.bus_num	= 1,
 	},
 	{	//default device 1.3
