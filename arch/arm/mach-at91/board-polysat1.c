@@ -348,6 +348,47 @@ static struct AtmelSPIMuxData spi1_cs15_data = {
    &spi_en, spi1_cs15_dev, NULL, 5
 };
 
+void *intrepid_spimux_controller_data(int cs)
+{
+   switch(cs) {
+      case 0:
+         return &spi1_cs0_data;
+      case 1:
+         return &spi1_cs1_data;
+      case 2:
+         return &spi1_cs2_data;
+      case 3:
+         return &spi1_cs3_data;
+      case 4:
+         return &spi1_cs4_data;
+      case 5:
+         return &spi1_cs5_data;
+      case 6:
+         return &spi1_cs6_data;
+      case 7:
+         return &spi1_cs7_data;
+      case 8:
+         return &spi1_cs8_data;
+      case 9:
+         return &spi1_cs9_data;
+      case 10:
+         return &spi1_cs10_data;
+      case 11:
+         return &spi1_cs11_data;
+      case 12:
+         return &spi1_cs12_data;
+      case 13:
+         return &spi1_cs13_data;
+      case 14:
+         return &spi1_cs14_data;
+      case 15:
+         return &spi1_cs15_data;
+      default:
+         return NULL;
+   }
+   return NULL;
+}
+
 
 static struct {
    //int regToggleGPIO, regReadIRQ;
@@ -362,6 +403,7 @@ static struct DS3234PlatData plat_data_ds3234 = { 168, &xra_shared_irq_time };
  * SPI devices.
  */
 
+#ifndef CONFIG_POLYSAT_NO_SPIDEV1_8
 static struct spi_board_info r9_rtc_spidev = {
 		.modalias	= "ds3234",
 		.chip_select	= 8,
@@ -370,7 +412,9 @@ static struct spi_board_info r9_rtc_spidev = {
 		.max_speed_hz	= 1 * 1000 * 1000,
 		.bus_num	= 1,
 };
+#endif
 
+#ifndef CONFIG_POLYSAT_NO_SPIDEV1_3
 static struct spi_board_info r9_xra_spidev = {
 		.modalias	= "xra1405",
 		.chip_select	= 3,
@@ -380,11 +424,10 @@ static struct spi_board_info r9_xra_spidev = {
 		.bus_num	= 1,
                 .irq = 29, // Handled w/physical IRQ line, IRQ0
 };
-
-#define SPI0_3_IDX 3
-#define SPI0_8_IDX 8
+#endif
 
 static struct spi_board_info ek_spi_devices[] = {
+#ifndef CONFIG_POLYSAT_NO_SPIDEV1_0
 	{	//default device 1.0
 		.modalias	= "spidev",
 		.chip_select	= 0,
@@ -393,6 +436,8 @@ static struct spi_board_info ek_spi_devices[] = {
 		.bus_num	= 1,
       .mode = SPI_MODE_0,
 	},
+#endif
+#ifndef CONFIG_POLYSAT_NO_SPIDEV1_1
 	{	//default device 1.1
 		.modalias	= "spidev",
 		.chip_select	= 1,
@@ -401,6 +446,8 @@ static struct spi_board_info ek_spi_devices[] = {
 		.bus_num	= 1,
 		.mode = SPI_MODE_3,
 	},
+#endif
+#ifndef CONFIG_POLYSAT_NO_SPIDEV1_2
 	{	//default device 1.2
 		.modalias	= "spidev",
 		.chip_select	= 2,
@@ -408,6 +455,8 @@ static struct spi_board_info ek_spi_devices[] = {
 		.max_speed_hz	= 2 * 1000 * 1000,
 		.bus_num	= 1,
 	},
+#endif
+#ifndef CONFIG_POLYSAT_NO_SPIDEV1_3
 	{	//default device 1.3
 		.modalias	= "spidev",
 		.chip_select	= 3,
@@ -415,6 +464,8 @@ static struct spi_board_info ek_spi_devices[] = {
 		.max_speed_hz	= 2 * 1000 * 1000,
 		.bus_num	= 1,
 	},
+#endif
+#ifndef CONFIG_POLYSAT_NO_SPIDEV1_4
 	{	//default device 1.4
 		.modalias	= "spidev",
 		.chip_select	= 4,
@@ -422,6 +473,8 @@ static struct spi_board_info ek_spi_devices[] = {
 		.max_speed_hz	= 2 * 1000 * 1000,
 		.bus_num	= 1,
 	},
+#endif
+#ifndef CONFIG_POLYSAT_NO_SPIDEV1_5
 	{	//default device 1.5
 		.modalias	= "spidev",
 		.chip_select	= 5,
@@ -429,6 +482,8 @@ static struct spi_board_info ek_spi_devices[] = {
 		.max_speed_hz	= 2 * 1000 * 1000,
 		.bus_num	= 1,
 	},
+#endif
+#ifndef CONFIG_POLYSAT_NO_SPIDEV1_6
 	{	//default device 1.6
 		.modalias	= "spidev",
 		.chip_select	= 6,
@@ -436,6 +491,8 @@ static struct spi_board_info ek_spi_devices[] = {
 		.max_speed_hz	= 2 * 1000 * 1000,
 		.bus_num	= 1,
 	},
+#endif
+#ifndef CONFIG_POLYSAT_NO_SPIDEV1_7
 	{	// Transceiver
 		.modalias	= "AX5042",
 		.chip_select	= 7,
@@ -445,62 +502,79 @@ static struct spi_board_info ek_spi_devices[] = {
 		.bus_num	= 1,
       .irq = 30, // Handled w/physical IRQ line
 	},
-	{	//default device 1.0
+#endif
+#ifndef CONFIG_POLYSAT_NO_SPIDEV1_8
+	{	//default device 1.8
 		.modalias	= "ds3234",
 		.chip_select	= 8,
       .controller_data = &spi1_cs8_data,
 		.max_speed_hz	= 1 * 1000 * 1000,
 		.bus_num	= 1,
 	},
-	{	//default device 1.0
+#endif
+#ifndef CONFIG_POLYSAT_NO_SPIDEV1_9
+	{	//default device 1.9
 		.modalias	= "spidev",
 		.chip_select	= 9,
       .controller_data = &spi1_cs9_data,
 		.max_speed_hz	= 2 * 1000 * 1000,
 		.bus_num	= 1,
 	},
-	{	//default device 1.0
+#endif
+#ifndef CONFIG_POLYSAT_NO_SPIDEV1_10
+	{	//default device 1.10
 		.modalias	= "spidev",
 		.chip_select	= 10,
       .controller_data = &spi1_cs10_data,
 		.max_speed_hz	= 1 * 1000 * 1000,
 		.bus_num	= 1,
 	},
-	{	//default device 1.0
+#endif
+#ifndef CONFIG_POLYSAT_NO_SPIDEV1_11
+	{	//default device 1.11
 		.modalias	= "spidev",
 		.chip_select	= 11,
       .controller_data = &spi1_cs11_data,
 		.max_speed_hz	= 1 * 1000 * 1000,
 		.bus_num	= 1,
 	},
-	{	//default device 1.0
+#endif
+#ifndef CONFIG_POLYSAT_NO_SPIDEV1_12
+	{	//default device 1.12
 		.modalias	= "spidev",
 		.chip_select	= 12,
       .controller_data = &spi1_cs12_data,
 		.max_speed_hz	= 1 * 1000 * 1000,
 		.bus_num	= 1,
 	},
-	{	//default device 1.0
+#endif
+#ifndef CONFIG_POLYSAT_NO_SPIDEV1_13
+	{	//default device 1.13
 		.modalias	= "spidev",
 		.chip_select	= 13,
       .controller_data = &spi1_cs13_data,
 		.max_speed_hz	= 1 * 1000 * 1000,
 		.bus_num	= 1,
 	},
-	{	//default device 1.0
+#endif
+#ifndef CONFIG_POLYSAT_NO_SPIDEV1_14
+	{	//default device 1.14
 		.modalias	= "spidev",
 		.chip_select	= 14,
       .controller_data = &spi1_cs14_data,
 		.max_speed_hz	= 1 * 1000 * 1000,
 		.bus_num	= 1,
 	},
-	{	//default device 1.0
+#endif
+#ifndef CONFIG_POLYSAT_NO_SPIDEV1_15
+	{	//default device 1.15
 		.modalias	= "spidev",
 		.chip_select	= 15,
       .controller_data = &spi1_cs15_data,
 		.max_speed_hz	= 1 * 1000 * 1000,
 		.bus_num	= 1,
 	},
+#endif
 //#if !(defined(CONFIG_MMC_ATMELMCI) || defined(CONFIG_MMC_AT91))
 	{	// Numonyx PCM chip primary, mtd6
 		// .modalias	= "mtd_dataflash",
@@ -873,6 +947,8 @@ static struct i2c_board_info __initdata ek_i2c_devices_pl[] = {
 
 static void __init ek_board_init(void)
 {
+   int i;
+
 	/* Serial */
 	at91_add_device_serial();
 	/* USB Host */
@@ -913,8 +989,18 @@ static void __init ek_board_init(void)
 
 	/* SPI */
    if (BOARD_REV_NUM >= 9) {
-      ek_spi_devices[SPI0_3_IDX] = r9_xra_spidev;
-      ek_spi_devices[SPI0_8_IDX] = r9_rtc_spidev;
+      for (i = 0; i < ARRAY_SIZE(ek_spi_devices); i++) {
+#ifndef CONFIG_POLYSAT_NO_SPIDEV1_3
+         if (r9_xra_spidev.bus_num == ek_spi_devices[i].bus_num && 
+               r9_xra_spidev.chip_select == ek_spi_devices[i].chip_select)
+            ek_spi_devices[i] = r9_xra_spidev;
+#endif
+#ifndef CONFIG_POLYSAT_NO_SPIDEV1_8
+         if (r9_rtc_spidev.bus_num == ek_spi_devices[i].bus_num && 
+               r9_rtc_spidev.chip_select == ek_spi_devices[i].chip_select)
+            ek_spi_devices[i] = r9_rtc_spidev;
+#endif
+      }
    }
 
    at91_add_device_spi(ek_spi_devices, ARRAY_SIZE(ek_spi_devices));
