@@ -361,6 +361,108 @@ config MACH_POLYSAT1
 	help
 	  Select this if you are using a PolySat version 1 avionics board.
 
+if MACH_POLYSAT1
+
+comment "Kernel options for PolySat Flight Computer"
+
+config POLYSAT_NO_SPIDEV1_0
+	bool "Disable spidev 1.0"
+	depends on MACH_POLYSAT1
+	help
+	  Select this if you do not want a kernel platform spidev driver bound to SPI 1.0.
+
+config POLYSAT_NO_SPIDEV1_1
+	bool "Disable spidev 1.1"
+	depends on MACH_POLYSAT1
+	help
+	  Select this if you do not want a kernel platform spidev driver bound to SPI 1.1.
+
+config POLYSAT_NO_SPIDEV1_2
+	bool "Disable spidev 1.2"
+	depends on MACH_POLYSAT1
+	help
+	  Select this if you do not want a kernel platform spidev driver bound to SPI 1.2.
+
+config POLYSAT_NO_SPIDEV1_3
+	bool "Disable spidev 1.3"
+	depends on MACH_POLYSAT1
+	help
+	  Select this if you do not want a kernel platform spidev driver bound to SPI 1.3.
+
+config POLYSAT_NO_SPIDEV1_4
+	bool "Disable spidev 1.4"
+	depends on MACH_POLYSAT1
+	help
+	  Select this if you do not want a kernel platform spidev driver bound to SPI 1.4.
+
+config POLYSAT_NO_SPIDEV1_5
+	bool "Disable spidev 1.5"
+	depends on MACH_POLYSAT1
+	help
+	  Select this if you do not want a kernel platform spidev driver bound to SPI 1.5.
+
+config POLYSAT_NO_SPIDEV1_6
+	bool "Disable spidev 1.6"
+	depends on MACH_POLYSAT1
+	help
+	  Select this if you do not want a kernel platform spidev driver bound to SPI 1.6.
+
+config POLYSAT_NO_SPIDEV1_7
+	bool "Disable spidev 1.7"
+	depends on MACH_POLYSAT1
+	help
+	  Select this if you do not want a kernel platform spidev driver bound to SPI 1.7.
+
+config POLYSAT_NO_SPIDEV1_8
+	bool "Disable spidev 1.8"
+	depends on MACH_POLYSAT1
+	help
+	  Select this if you do not want a kernel platform spidev driver bound to SPI 1.8.
+
+config POLYSAT_NO_SPIDEV1_9
+	bool "Disable spidev 1.9"
+	depends on MACH_POLYSAT1
+	help
+	  Select this if you do not want a kernel platform spidev driver bound to SPI 1.9.
+
+config POLYSAT_NO_SPIDEV1_10
+	bool "Disable spidev 1.10"
+	depends on MACH_POLYSAT1
+	help
+	  Select this if you do not want a kernel platform spidev driver bound to SPI 1.10.
+
+config POLYSAT_NO_SPIDEV1_11
+	bool "Disable spidev 1.11"
+	depends on MACH_POLYSAT1
+	help
+	  Select this if you do not want a kernel platform spidev driver bound to SPI 1.11.
+
+config POLYSAT_NO_SPIDEV1_12
+	bool "Disable spidev 1.12"
+	depends on MACH_POLYSAT1
+	help
+	  Select this if you do not want a kernel platform spidev driver bound to SPI 1.12.
+
+config POLYSAT_NO_SPIDEV1_13
+	bool "Disable spidev 1.13"
+	depends on MACH_POLYSAT1
+	help
+	  Select this if you do not want a kernel platform spidev driver bound to SPI 1.13.
+
+config POLYSAT_NO_SPIDEV1_14
+	bool "Disable spidev 1.14"
+	depends on MACH_POLYSAT1
+	help
+	  Select this if you do not want a kernel platform spidev driver bound to SPI 1.14.
+
+config POLYSAT_NO_SPIDEV1_15
+	bool "Disable spidev 1.15"
+	depends on MACH_POLYSAT1
+	help
+	  Select this if you do not want a kernel platform spidev driver bound to SPI 1.15.
+
+endif
+
 config MACH_AT91SAM9G20EK
 	bool "Atmel AT91SAM9G20-EK Evaluation Kit"
 	depends on ARCH_AT91SAM9G20
