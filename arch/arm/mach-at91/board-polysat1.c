@@ -388,7 +388,7 @@ void *intrepid_spimux_controller_data(int cs)
    }
    return NULL;
 }
-
+EXPORT_SYMBOL_GPL(intrepid_spimux_controller_data);
 
 static struct {
    //int regToggleGPIO, regReadIRQ;
