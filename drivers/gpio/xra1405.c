@@ -10,7 +10,7 @@
  * The driver provides and registers functions to access the GPIOs using the
  * abstraction layer, resolving the access by itself using the SPI interface.
  * It provides function to configure the GPIOs as input or output.
- * It also support nested interrupts if an IRQ pin was provided.
+ * It also supports nested interrupts if an IRQ pin was provided.
  *
  * The definition of the gpio_chip  GPIO controller can be found in
  * <linux/gpio/driver.h>.
@@ -123,6 +123,19 @@ struct xra1405 {
     struct timeval *shared_irq_time;
 };
 
+static int xra1405_read(struct xra1405 *xra, unsigned reg)
+{
+    u8 tx[1];
+    int status;
+
+    /* Use the macro to compute the read command byte */
+    tx[0] = XRA1405_READ(reg);
+    /* Write 8 bits and read 8 bits synchronously */
+    status = spi_w8r8(xra->data, tx[0]);
+    /* Return the status received, either the value readed or an error */
+    return status;
+}
+
 static int xra1405_read16(struct xra1405 *xra, unsigned reg)
 {
     int lsb, msb;
@@ -135,19 +148,6 @@ static int xra1405_read16(struct xra1405 *xra, unsigned reg)
         return msb;
 
     return (lsb & 0x00FF) + ((msb & 0x00FF) << 8);
-}
-
-static int xra1405_read(struct xra1405 *xra, unsigned reg)
-{
-    u8 tx[1];
-    int status;
-
-    /* Use the macro to compute the read command byte */
-    tx[0] = XRA1405_READ(reg);
-    /* Write 8 bits and read 8 bits synchronously */
-    status = spi_w8r8(xra->data, tx[0]);
-    /* Return the status received, either the value readed or an error */
-    return status;
 }
 
 static int xra1405_write(struct xra1405 *xra, unsigned reg, unsigned val)
