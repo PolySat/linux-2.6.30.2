@@ -281,7 +281,7 @@ static int xra1405_direction_input(struct gpio_chip *chip, unsigned offset)
 
     /* Write the GPIO Configuration Register */
     status = __xra1405_bit(xra, XRA1405_CACHE_GCR, offset, 1);
-    if (xra->irq_allocated & BIT(offset)) {
+    if (xra->irq_allocated) {
         __xra1405_bit(xra, XRA1405_CACHE_REIR, offset, 1);
         __xra1405_bit(xra, XRA1405_CACHE_FEIR, offset, 1);
         __xra1405_bit(xra, XRA1405_CACHE_IFR, offset, 0);
@@ -308,7 +308,7 @@ static int xra1405_get(struct gpio_chip *chip, unsigned offset)
 
     mutex_lock(&xra->lock);
 
-    if (!(xra->irq_allocated & BIT(offset))) {
+    if (!xra->irq_allocated) {
        /* Read the status of the GSR register (actual value of the GPIO) */
         status = xra1405_read(xra, reg);
         if (status >= 0) {
@@ -531,7 +531,7 @@ static unsigned int xra1405_irq_startup(unsigned int irq)
     // printk("_startup %u\n", pos);
 
     mutex_lock(&xra->lock);
-    irq_was_allocated = xra->irq_allocated & BIT(pos);
+    irq_was_allocated = xra->irq_allocated;
     xra->irq_allocated |= BIT(pos);
     __xra1405_bit(xra, XRA1405_CACHE_GCR, pos, 1);
 
@@ -565,7 +565,7 @@ static void xra1405_irq_shutdown(unsigned int irq)
     // printk("_shutdown %u\n", pos);
 
     mutex_lock(&xra->lock);
-    irq_was_allocated = xra->irq_allocated & BIT(pos);
+    irq_was_allocated = xra->irq_allocated;
     xra->irq_allocated &= ~BIT(pos);
     __xra1405_bit(xra, XRA1405_CACHE_IER, pos, 0);
 
@@ -698,7 +698,7 @@ static int xra1405_probe_one(struct xra1405 *xra, struct device *dev,
     if (status < 0)
         goto fail;
 
-    /* Force all tristate modes to be disabled o GPIOs */
+    /* Force tristate mode on all GPIOs to be disabled */
     status = xra1405_write16(xra, XRA1405_REG_TSCR, 0x0000);
     if (status < 0)
         goto fail;
@@ -709,7 +709,7 @@ static int xra1405_probe_one(struct xra1405 *xra, struct device *dev,
         goto fail;
 
     /* Disable all interrupts on input GPIOs by default */
-    /* If we setup interrupts on specific GPIOs later we will configure them then */
+    /* If we setup interrupts later we will configure them then */
     status = xra1405_write16(xra, XRA1405_REG_IER, 0);
     if (status < 0)
         goto fail;
