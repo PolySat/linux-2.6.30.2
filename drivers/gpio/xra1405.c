@@ -100,11 +100,11 @@
 
 struct xra1405 {
     u16         cache[XRA1405_CACHE_COUNT]; /* Cache of the chip registers (in pairs) */
-    u32         irq_rise_mask;
-    u32         irq_fall_mask;
-    u32         irq_enabled_mask;
-    u32         irq_allocated;
-    u32         irq_soft_mask;
+    u16         irq_rise_mask;
+    u16         irq_fall_mask;
+    u16         irq_enabled_mask;
+    u16         irq_allocated;
+    u16         irq_soft_mask;
     int         irq;
     struct irq_domain   *irq_domain;
 
