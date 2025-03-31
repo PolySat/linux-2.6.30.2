@@ -378,8 +378,8 @@ static void xra1405_isr_gsr_read_complete(void *context)
         goto err_data;
 
     /* store values read from SPI read */
-    xra->cache[XRA1405_CACHE_GSR] = xra->rx_buf_async[0];
-    xra->cache[XRA1405_CACHE_GSR] |= (xra->rx_buf_async[1] << 8);
+    xra->cache[XRA1405_CACHE_ISR] = xra->rx_buf_async[0];
+    xra->cache[XRA1405_CACHE_ISR] |= (xra->rx_buf_async[1] << 8);
 
     xra->cache[XRA1405_CACHE_GSR] = xra->rx_buf_async[2];
     xra->cache[XRA1405_CACHE_GSR] |= (xra->rx_buf_async[3] << 8);
