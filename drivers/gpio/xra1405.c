@@ -159,7 +159,7 @@ static int xra1405_write(struct xra1405 *xra, unsigned reg, unsigned val)
     xra->tx_buf_sync[0] = XRA1405_WRITE(reg);
     xra->tx_buf_sync[1] = val;
     /* Just write to the bus and don't try to read anything back */
-    return spi_write(xra->data, xra->tx_buf_sync, sizeof(xra->tx_buf_sync));
+    return spi_write(xra->data, xra->tx_buf_sync, 2);
 }
 
 static int xra1405_write16(struct xra1405 *xra, unsigned reg, u16 val)
