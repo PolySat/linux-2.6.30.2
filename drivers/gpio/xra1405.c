@@ -133,9 +133,9 @@ static int xra1405_read(struct xra1405 *xra, unsigned reg)
     int status;
 
     /* Use the macro to compute the read command byte */
-    xra->rx_buf_sync[0] = XRA1405_READ(reg);
+    xra->tx_buf_sync[0] = XRA1405_READ(reg);
     /* Write 8 bits and read 8 bits synchronously */
-    status = spi_w8r8(xra->data, xra->rx_buf_sync[0]);
+    status = spi_w8r8(xra->data, xra->tx_buf_sync[0]);
     /* Return the status received, either the value readed or an error */
     return status;
 }
@@ -180,22 +180,22 @@ static int xra1405_write16(struct xra1405 *xra, unsigned reg, u16 val)
 static int xra1405_cache_regs(struct xra1405 *xra)
 {
     u8 tmp = 0;
-    u8 tx[1], rx[1], i;
+    u8 i;
     int status;
 
     /* Read each register and store them in the cache */
     for (i=0; i < XRA1405_REG_COUNT; i++) {
         /* Generate the read command */
-        tx[0] = XRA1405_READ(i);
-        status = spi_write_then_read(xra->data, tx, sizeof(tx),
-                rx, sizeof(rx));
+        xra->tx_buf_sync[0] = XRA1405_READ(i);
+        status = spi_write_then_read(xra->data, xra->tx_buf_sync, 1,
+                xra->rx_buf_sync, 1);
         if (status >= 0) {
             if (i%2 == 0) {
                 /* Store the value in a temporary 8 bit variable */
-                tmp = rx[0];
+                tmp = xra->rx_buf_sync[0];
             } else {
                 /* Store the 16bit value in the proper cache variable */
-                xra->cache[(i-1)/2] = (rx[0] << 8) | (tmp & 0x00FF);
+                xra->cache[(i-1)/2] = (xra->rx_buf_sync[0] << 8) | (tmp & 0x00FF);
                 /* Print out initial debug information */
                 dev_dbg(xra->chip.dev, "%s: Initial value for 0x%02X is 0x%04X\n",
                         XRA1405_MODULE_NAME, ((i-1)/2 << 1), xra->cache[(i-1)/2]);
@@ -217,7 +217,7 @@ static void add_async_spi_read(struct xra1405 *xra, u8 reg, int xfer_index)
     xra->tx_buf_async[xfer_index] = XRA1405_READ(reg);
     xra->spi_xfer[xfer_index * 2].tx_buf = xra->tx_buf_async + xfer_index;
     xra->spi_xfer[xfer_index * 2].len = 1;
-    spi_message_add_tail(&xra->spi_xfer[0], &xra->spi_msg);
+    spi_message_add_tail(&xra->spi_xfer[xfer_index * 2], &xra->spi_msg);
 
     /* response receive buffer */
     xra->rx_buf_async[xfer_index] = 0x00;
