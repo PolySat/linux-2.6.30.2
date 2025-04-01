@@ -216,12 +216,14 @@ static void add_async_spi_read(struct xra1405 *xra, u8 reg, int xfer_index)
     /* command byte */
     xra->tx_buf_async[xfer_index] = XRA1405_READ(reg);
     xra->spi_xfer[xfer_index * 2].tx_buf = xra->tx_buf_async + xfer_index;
+    xra->spi_xfer[xfer_index * 2].rx_buf = NULL;
     xra->spi_xfer[xfer_index * 2].len = 1;
     spi_message_add_tail(&xra->spi_xfer[xfer_index * 2], &xra->spi_msg);
 
     /* response receive buffer */
     xra->rx_buf_async[xfer_index] = 0x00;
     xra->spi_xfer[xfer_index * 2 + 1].rx_buf = xra->rx_buf_async + xfer_index;
+    xra->spi_xfer[xfer_index * 2 + 1].tx_buf = NULL;
     xra->spi_xfer[xfer_index * 2 + 1].len = 1;
     /* deselect chip select inbetween individual reads, shown on timing sheet on datasheet */
     xra->spi_xfer[xfer_index * 2 + 1].cs_change = 1;
