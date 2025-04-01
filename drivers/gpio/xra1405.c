@@ -712,7 +712,7 @@ static int xra1405_probe_one(struct xra1405 *xra, struct device *dev,
 
     /* Disable all interrupts on input GPIOs by default */
     /* If we setup interrupts later we will configure them then */
-    status = xra1405_write16(xra, XRA1405_REG_IER, 0);
+    status = xra1405_write16(xra, XRA1405_REG_IER, 0x0000);
     if (status < 0)
         goto fail;
 
