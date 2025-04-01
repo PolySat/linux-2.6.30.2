@@ -106,7 +106,6 @@ struct xra1405 {
     u16         irq_allocated;
     u16         irq_soft_mask;
     int         irq;
-    struct irq_domain   *irq_domain;
 
     /* Mutex for xra synchronous reading and writing */
     struct mutex        lock;
