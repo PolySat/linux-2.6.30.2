@@ -381,7 +381,7 @@ static void xra1405_isr_gsr_read_complete(void *context)
     if (xra->spi_msg.status < 0)
         goto err_data;
 
-    previous_gs = xra->cache[XRA1405_CACHE_GSR];
+    previous_gsr = xra->cache[XRA1405_CACHE_GSR];
 
 
     /* store values read from SPI read */
