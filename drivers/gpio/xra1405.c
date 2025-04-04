@@ -375,9 +375,14 @@ static void xra1405_isr_gsr_read_complete(void *context)
 {
     struct xra1405 *xra = context;
     int i, handled_count = 0;
+    int pin_interrupt, pin_gsr, pin_previous_gsr;
+    u16 previous_gsr;
 
     if (xra->spi_msg.status < 0)
         goto err_data;
+
+    previous_gs = xra->cache[XRA1405_CACHE_GSR];
+
 
     /* store values read from SPI read */
     xra->cache[XRA1405_CACHE_ISR] = xra->rx_buf_async[0];
@@ -391,8 +396,26 @@ static void xra1405_isr_gsr_read_complete(void *context)
 
     /* Fire any nested IRQ if it is enabled */
     for (i=0; i < xra->chip.ngpio; i++) {
-        if (BIT(i) & xra->cache[XRA1405_CACHE_ISR] &&
-                !(BIT(i) & xra->irq_soft_mask)) {
+        /* skip if nested irq is masked */
+        if (BIT(i) & xra->irq_soft_mask) {
+            continue;
+        }
+
+        if (xra->cache[XRA1405_CACHE_ISR] & BIT(i)) {
+            /* This pin is enabled in interrupt state register */
+            pin_interrupt = 1;
+        } else {
+            /* Detect if state changed since last interrupt
+             * to detect the case of an interrupt happening between ISR and GSR read */
+            pin_gsr = !!(xra->cache[XRA1405_CACHE_GSR] & BIT(i));
+            pin_previous_gsr = !!(previous_gsr & BIT(i));
+            if (   (BIT(i) & xra->irq_fall_mask && pin_previous_gsr == 1 && pin_gsr == 0) ||
+                || (BIT(i) & xra->irq_rise_mask && pin_previous_gsr == 0 && pin_gsr == 1)) {
+                pin_interrupt = 1;
+            }
+        }
+
+        if (pin_interrupt) {
             generic_handle_irq(xra->chip.base + i);
             handled_count++;
         }
@@ -611,7 +634,7 @@ static int xra1405_irq_setup(struct xra1405 *xra)
     }
 
     err = request_irq(xra->irq, xra1405_irq,
-        IRQF_TRIGGER_LOW | IRQF_DISABLED, XRA1405_MODULE_NAME, xra);
+        IRQF_TRIGGER_FALLING | IRQF_DISABLED, XRA1405_MODULE_NAME, xra);
     if (err != 0) {
         dev_err(chip->dev, "unable to request IRQ#%d: %d\n",
                 xra->irq, err);
