@@ -409,7 +409,7 @@ static void xra1405_isr_gsr_read_complete(void *context)
              * to detect the case of an interrupt happening between ISR and GSR read */
             pin_gsr = !!(xra->cache[XRA1405_CACHE_GSR] & BIT(i));
             pin_previous_gsr = !!(previous_gsr & BIT(i));
-            if (   (BIT(i) & xra->irq_fall_mask && pin_previous_gsr == 1 && pin_gsr == 0) ||
+            if (   (BIT(i) & xra->irq_fall_mask && pin_previous_gsr == 1 && pin_gsr == 0)
                 || (BIT(i) & xra->irq_rise_mask && pin_previous_gsr == 0 && pin_gsr == 1)) {
                 pin_interrupt = 1;
             }
