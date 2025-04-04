@@ -114,7 +114,7 @@ struct xra1405 {
 
     /* SPI message structures */
     struct spi_message   spi_msg;
-    struct spi_transfer  spi_xfer[XRA1405_READ_ASYNC_BUF_MAX];
+    struct spi_transfer  spi_xfer[XRA1405_READ_ASYNC_BUF_MAX * 2];
 
     /* tx and rx buffers */
     u8                   tx_buf_async[XRA1405_READ_ASYNC_BUF_MAX];
@@ -140,14 +140,16 @@ static int xra1405_read(struct xra1405 *xra, unsigned reg)
 
 static int xra1405_read16(struct xra1405 *xra, unsigned reg)
 {
-    int status;
+        int lsb, msb;
+    lsb = xra1405_read(xra, reg);
+    if (lsb < 0)
+        return lsb;
 
-    /* Use the macro to compute the read command byte */
-    xra->tx_buf_sync[0] = XRA1405_READ(reg);
-    /* Write 8 bits and read 16 bits synchronously */
-    status = spi_w8r8(xra->data, xra->tx_buf_sync[0]);
-    /* Return the status received, either the value read or an error */
-    return status;
+    msb = xra1405_read(xra, reg + 1);
+    if (msb < 0)
+        return msb;
+
+    return (lsb & 0x00FF) + ((msb & 0x00FF) << 8);
 }
 
 static int xra1405_write(struct xra1405 *xra, unsigned reg, unsigned val)
@@ -206,27 +208,28 @@ static int xra1405_cache_regs(struct xra1405 *xra)
 }
 
 /**
- * \brief Adds an async read of 16 bits to xra SPI message.
- * Sets up two transfers in spi_xfer starting at xfer_index and adds them to the SPI message
+ * \brief Adds an async read of 8 bits to xra SPI message.
+ * Sets up two transfers in spi_xfer and adds them to the SPI message
+ * read_index is double the transfer index in spi_xfer
+ * read_index must be less than XRA1405_READ_ASYNC_BUF_MAX
  */
-static void add_async_spi_read16(struct xra1405 *xra, u8 reg, int xfer_index)
+static void add_async_spi_read(struct xra1405 *xra, u8 reg, int read_index)
 {
     /* command byte (8 bits) */
-    xra->tx_buf_async[xfer_index] = XRA1405_READ(reg);
-    xra->spi_xfer[xfer_index].tx_buf = xra->tx_buf_async + xfer_index;
-    xra->spi_xfer[xfer_index].rx_buf = NULL;
-    xra->spi_xfer[xfer_index].len = 1;
-    spi_message_add_tail(&xra->spi_xfer[xfer_index], &xra->spi_msg);
+    xra->tx_buf_async[read_index] = XRA1405_READ(reg);
+    xra->spi_xfer[read_index * 2].tx_buf = xra->tx_buf_async + read_index;
+    xra->spi_xfer[read_index * 2].rx_buf = NULL;
+    xra->spi_xfer[read_index * 2].len = 1;
+    spi_message_add_tail(&xra->spi_xfer[read_index * 2], &xra->spi_msg);
 
-    /* response receive (16 bits) */
-    xra->rx_buf_async[xfer_index] = 0x00;
-    xra->rx_buf_async[xfer_index + 1] = 0x00;
-    xra->spi_xfer[xfer_index + 1].rx_buf = xra->rx_buf_async + xfer_index;
-    xra->spi_xfer[xfer_index + 1].tx_buf = NULL;
-    xra->spi_xfer[xfer_index + 1].len = 2;
+    /* response receive (8 bits) */
+    xra->rx_buf_async[read_index] = 0x00;
+    xra->spi_xfer[read_index * 2 + 1].rx_buf = xra->rx_buf_async + read_index;
+    xra->spi_xfer[read_index * 2 + 1].tx_buf = NULL;
+    xra->spi_xfer[read_index * 2 + 1].len = 1;
     /* deselect chip select inbetween individual reads, shown on timing sheet on datasheet */
-    xra->spi_xfer[xfer_index + 1].cs_change = 1;
-    spi_message_add_tail(&xra->spi_xfer[xfer_index + 1], &xra->spi_msg);
+    xra->spi_xfer[read_index * 2 + 1].cs_change = 1;
+    spi_message_add_tail(&xra->spi_xfer[read_index * 2 + 1], &xra->spi_msg);
 }
 
 /**
@@ -391,8 +394,10 @@ static void xra1405_isr_gsr_read_complete(void *context)
     xra->cache[XRA1405_CACHE_GSR] = xra->rx_buf_async[2];
     xra->cache[XRA1405_CACHE_GSR] |= (xra->rx_buf_async[3] << 8);
 
-    // printk("ISR: %04X, GSR: %04X\n", xra->cache[XRA1405_CACHE_ISR],
+    // printk("ISR: %04X, GSR: %04X, PREV_GSR: %04X\n",
+    //                                 xra->cache[XRA1405_CACHE_ISR],
     //                                 xra->cache[XRA1405_CACHE_GSR]);
+    //                                 previous_gsr);
 
     /* Fire any nested IRQ if it is enabled */
     for (i=0; i < xra->chip.ngpio; i++) {
@@ -401,6 +406,7 @@ static void xra1405_isr_gsr_read_complete(void *context)
             continue;
         }
 
+        pin_interrupt = 1
         if (xra->cache[XRA1405_CACHE_ISR] & BIT(i)) {
             /* This pin is enabled in interrupt state register */
             pin_interrupt = 1;
@@ -452,8 +458,10 @@ static irqreturn_t xra1405_irq(int irq, void *data)
     memset(&xra->spi_xfer, 0, sizeof(xra->spi_xfer));
 
     /* sets up transfers for reading ISR and GSR registers */
-    add_async_spi_read16(xra, XRA1405_REG_ISR, 0);
-    add_async_spi_read16(xra, XRA1405_REG_GSR, 2);
+    add_async_spi_read(xra, XRA1405_REG_ISR, 0);
+    add_async_spi_read(xra, XRA1405_REG_ISR_MSB, 1);
+    add_async_spi_read(xra, XRA1405_REG_GSR, 2);
+    add_async_spi_read(xra, XRA1405_REG_GSR_MSB, 2);
 
     xra->spi_msg.complete = xra1405_isr_gsr_read_complete;
 
