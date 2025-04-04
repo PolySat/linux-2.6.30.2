@@ -396,7 +396,7 @@ static void xra1405_isr_gsr_read_complete(void *context)
 
     // printk("ISR: %04X, GSR: %04X, PREV_GSR: %04X\n",
     //                                 xra->cache[XRA1405_CACHE_ISR],
-    //                                 xra->cache[XRA1405_CACHE_GSR]);
+    //                                 xra->cache[XRA1405_CACHE_GSR],
     //                                 previous_gsr);
 
     /* Fire any nested IRQ if it is enabled */
@@ -406,7 +406,7 @@ static void xra1405_isr_gsr_read_complete(void *context)
             continue;
         }
 
-        pin_interrupt = 1
+        pin_interrupt = 1;
         if (xra->cache[XRA1405_CACHE_ISR] & BIT(i)) {
             /* This pin is enabled in interrupt state register */
             pin_interrupt = 1;
