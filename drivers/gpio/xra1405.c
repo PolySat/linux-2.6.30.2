@@ -378,13 +378,9 @@ static void xra1405_isr_gsr_read_complete(void *context)
 {
     struct xra1405 *xra = context;
     int i, handled_count = 0;
-    int pin_interrupt, pin_gsr, pin_previous_gsr;
-    u16 previous_gsr;
 
     if (xra->spi_msg.status < 0)
         goto err_data;
-
-    previous_gsr = xra->cache[XRA1405_CACHE_GSR];
 
 
     /* store values read from SPI read */
@@ -394,34 +390,18 @@ static void xra1405_isr_gsr_read_complete(void *context)
     xra->cache[XRA1405_CACHE_GSR] = xra->rx_buf_async[2];
     xra->cache[XRA1405_CACHE_GSR] |= (xra->rx_buf_async[3] << 8);
 
-    // printk("ISR: %04X, GSR: %04X, PREV_GSR: %04X\n",
+    // printk("ISR: %04X, GSR: %04X\n",
     //                                 xra->cache[XRA1405_CACHE_ISR],
-    //                                 xra->cache[XRA1405_CACHE_GSR],
-    //                                 previous_gsr);
+    //                                 xra->cache[XRA1405_CACHE_GSR]);
 
     /* Fire any nested IRQ if it is enabled */
     for (i=0; i < xra->chip.ngpio; i++) {
         /* skip if nested irq is masked */
-        if (BIT(i) & xra->irq_soft_mask) {
+        if (xra->irq_soft_mask & BIT(i)) {
             continue;
         }
 
-        pin_interrupt = 1;
         if (xra->cache[XRA1405_CACHE_ISR] & BIT(i)) {
-            /* This pin is enabled in interrupt state register */
-            pin_interrupt = 1;
-        } else {
-            /* Detect if state changed since last interrupt
-             * to detect the case of an interrupt happening between ISR and GSR read */
-            pin_gsr = !!(xra->cache[XRA1405_CACHE_GSR] & BIT(i));
-            pin_previous_gsr = !!(previous_gsr & BIT(i));
-            if (   (BIT(i) & xra->irq_fall_mask && pin_previous_gsr == 1 && pin_gsr == 0)
-                || (BIT(i) & xra->irq_rise_mask && pin_previous_gsr == 0 && pin_gsr == 1)) {
-                pin_interrupt = 1;
-            }
-        }
-
-        if (pin_interrupt) {
             generic_handle_irq(xra->chip.base + i);
             handled_count++;
         }
