@@ -15,6 +15,8 @@ struct xra1405_platform_data {
      */
     unsigned    base;
     struct timeval *shared_irq_time;
+    unsigned int level_check_interval_ms;
+
     /**
      * Marks the device as a interrupt controller.
      */

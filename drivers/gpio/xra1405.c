@@ -29,6 +29,7 @@
 //#include <linux/of_irq.h>
 //#include <linux/of_device.h>
 #include <linux/workqueue.h>
+#include <linux/ktime.h>
 #include <linux/delay.h>
 #include <linux/irq.h>
 #include <asm/processor.h>
@@ -124,6 +125,10 @@ struct xra1405 {
 
     void    *data;
     struct timeval *shared_irq_time;
+
+    struct timeval last_irq_time;
+    struct hrtimer level_check_hrtimer;
+    ktime_t level_check_interval;
 };
 
 static int xra1405_read(struct xra1405 *xra, unsigned reg)
@@ -377,7 +382,7 @@ static void xra1405_set(struct gpio_chip *chip, unsigned offset, int value)
 static void xra1405_isr_gsr_read_complete(void *context)
 {
     struct xra1405 *xra = context;
-    int i, handled_count = 0;
+    int i = 0;
 
     if (xra->spi_msg.status < 0)
         goto err_data;
@@ -401,9 +406,21 @@ static void xra1405_isr_gsr_read_complete(void *context)
             continue;
         }
 
+
         if (xra->cache[XRA1405_CACHE_ISR] & BIT(i)) {
             generic_handle_irq(xra->chip.base + i);
-            handled_count++;
+        } else {
+            /* handles where a rising or falling interrupt happens between ISR and GSR read */
+            if (xra->irq_fall_mask & BIT(i) && xra->irq_rise_mask & BIT(i)) {
+                /* we can't say anything if it's both a rising and falling edge interrupt */
+                continue;
+            } else if (xra->irq_rise_mask & BIT(i) && (xra->cache[XRA1405_CACHE_GSR] & BIT(i))) {
+                /* if it's rising edge and we missed it it will be high and not masked (by the driver that allocated the interrupt)*/
+                generic_handle_irq(xra->chip.base + i);
+                /* if it's falling edge and we missed it it will be low and not masked (by the driver that allocated the interrupt)*/
+            } else if (xra->irq_fall_mask & BIT(i) && !(xra->cache[XRA1405_CACHE_GSR] & BIT(i))) {
+                generic_handle_irq(xra->chip.base + i);
+            }
         }
     }
 
@@ -429,8 +446,9 @@ static irqreturn_t xra1405_irq(int irq, void *data)
     /* Mask the IRQ to prevent recursion */
     disable_irq_nosync(xra->irq);
 
+    do_gettimeofday(&xra->last_irq_time);
     if (xra->shared_irq_time)
-        do_gettimeofday(xra->shared_irq_time);
+        memcpy(xra->shared_irq_time, &xra->last_irq_time, sizeof(xra->last_irq_time));
 
     spi_message_init(&xra->spi_msg);
     xra->spi_msg.context = xra;
@@ -592,6 +610,26 @@ static void xra1405_irq_shutdown(unsigned int irq)
     mutex_unlock(&xra->lock);
 }
 
+/* Optional feature to check level every check_level_interval to remedy a missed interrupt */
+static int xra1405_check_level(void *data) {
+    struct xra1405 *xra = data;
+
+    if (xra->irq_allocated) {
+        struct timeval time_now;
+        do_gettimeofday(&cur_time);
+
+        struct ktime_t ktime_since_irq = ktime_sub(timeval_to_ktime(xra->last_irq_time), timeval_to_ktime(cur_time));
+
+        /* check if an interrupt has made this check unnecessary */
+        if (ktime_us_delta(ktime_since_irq, xra->level_check_interval) > 0) {
+            generic_handle_irq(xra->irq);
+        }
+    }
+
+    hrtimer_forward(&xra->level_check_hrtimer, xra->level_check_interval);
+    return HRTIMER_RESTART;
+}
+
 /* Define the IRQ chip structure with the functions we have created */
 static struct irq_chip xra1405_irq_chip = {
     .name = XRA1405_GPIO_NAME,
@@ -621,12 +659,22 @@ static int xra1405_irq_setup(struct xra1405 *xra)
 #endif
     }
 
+    do_gettimeofday(&xra->last_irq_time);
+
     err = request_irq(xra->irq, xra1405_irq,
         IRQF_TRIGGER_FALLING | IRQF_DISABLED, XRA1405_MODULE_NAME, xra);
     if (err != 0) {
         dev_err(chip->dev, "unable to request IRQ#%d: %d\n",
                 xra->irq, err);
         return err;
+    }
+
+    if (!ktime_equal(xra->level_check_interval, ktime_set(0, 0))) {
+        hrtimer_init(&xra->level_check_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+        xra->level_check_hrtimer.function = &xra1405_check_level;
+        xra->level_check_hrtimer.data = xra;
+        /* start the level check timer, if this fails it means the timer was already started */
+        hrtimer_start(&xra->level_check_hrtimer, xra->level_check_interval, HRTIMER_MODE_REL);
     }
 
     return 0;
@@ -648,7 +696,9 @@ static void xra1405_irq_teardown(struct xra1405 *xra, int cleanup_irq)
      * IRQ #"
      */
 
-    if (cleanup_irq) {
+    if (cleanup_irq) {'
+        if (!ktime_equal(xra->level_check_interval, ktime_set(0, 0)))
+            hrtime_cancel(&xra->level_check_hrtimer);
         free_irq(xra->irq, xra);
     }
 }
@@ -779,6 +829,12 @@ static int __devinit xra1405_probe(struct spi_device *spi)
     xra->irq = spi->irq;
     if (pdata)
         xra->shared_irq_time = pdata->shared_irq_time;
+
+    if (pdata)
+        xra->level_check_interval = ns_to_ktime(pdata->level_check_interval_ms * 1000000);
+    else
+        xra->level_check_interval = ktime_set(0, 0);
+
 
     /* Register the number of GPIO the chip has */
     xra->chip.ngpio = 16;
