@@ -614,12 +614,13 @@ static void xra1405_irq_shutdown(unsigned int irq)
 /* Optional feature to check level every check_level_interval to remedy a missed interrupt */
 static int xra1405_check_level(void *data) {
     struct xra1405 *xra = data;
+    struct timeval cur_time;
+    ktime_t ktime_since_irq;
 
     if (xra->irq_allocated) {
-        struct timeval cur_time;
-        do_gettimeofday(&cur_time);
 
-        ktime_t ktime_since_irq = ktime_sub(timeval_to_ktime(xra->last_irq_time), timeval_to_ktime(cur_time));
+        do_gettimeofday(&cur_time);
+        ktime_since_irq = ktime_sub(timeval_to_ktime(cur_time), timeval_to_ktime(xra->last_irq_time));
 
         /* check if an interrupt has made this check unnecessary */
         if (ktime_us_delta(ktime_since_irq, xra->level_check_interval) > 0) {
@@ -697,9 +698,9 @@ static void xra1405_irq_teardown(struct xra1405 *xra, int cleanup_irq)
      * IRQ #"
      */
 
-    if (cleanup_irq) {'
+    if (cleanup_irq) {
         if (!ktime_equal(xra->level_check_interval, ktime_set(0, 0)))
-            hrtime_cancel(&xra->level_check_hrtimer);
+            hrtimer_cancel(&xra->level_check_hrtimer);
         free_irq(xra->irq, xra);
     }
 }
