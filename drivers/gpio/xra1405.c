@@ -615,10 +615,10 @@ static int xra1405_check_level(void *data) {
     struct xra1405 *xra = data;
 
     if (xra->irq_allocated) {
-        struct timeval time_now;
+        struct timeval cur_time;
         do_gettimeofday(&cur_time);
 
-        struct ktime_t ktime_since_irq = ktime_sub(timeval_to_ktime(xra->last_irq_time), timeval_to_ktime(cur_time));
+        ktime_t ktime_since_irq = ktime_sub(timeval_to_ktime(xra->last_irq_time), timeval_to_ktime(cur_time));
 
         /* check if an interrupt has made this check unnecessary */
         if (ktime_us_delta(ktime_since_irq, xra->level_check_interval) > 0) {
@@ -626,7 +626,7 @@ static int xra1405_check_level(void *data) {
         }
     }
 
-    hrtimer_forward(&xra->level_check_hrtimer, xra->level_check_interval);
+    hrtimer_forward_now(&xra->level_check_hrtimer, xra->level_check_interval);
     return HRTIMER_RESTART;
 }
 
