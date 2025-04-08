@@ -29,6 +29,7 @@
 //#include <linux/of_irq.h>
 //#include <linux/of_device.h>
 #include <linux/workqueue.h>
+#include <linux/hrtimer.h>
 #include <linux/ktime.h>
 #include <linux/delay.h>
 #include <linux/irq.h>
