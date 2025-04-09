@@ -621,31 +621,6 @@ static void xra1405_irq_shutdown(unsigned int irq)
     mutex_unlock(&xra->lock);
 }
 
-
-
-/*
- * \brief Blocking call to read isr and gsr and calls any nested interrupts
- */
-void xra1405_sync_read_isr_gsr(struct xra1405* xra) {
-    int isr, gsr;
-
-    mutex_lock(&xra->lock);
-
-    isr = xra1405_read16(xra, XRA1405_REG_ISR);
-    if (isr < 0)
-        return;
-    gsr = xra1405_read16(xra, XRA1405_REG_GSR);
-    if (gsr < 0)
-        return;
-
-    xra->cache[XRA1405_CACHE_ISR] = isr;
-    xra->cache[XRA1405_CACHE_GSR] = gsr;
-
-    xra1405_fire_nested_irqs(xra);
-
-    mutex_unlock(&xra->lock);
-}
-
 /*
  * \brief Thread to handle level checking feature, checks if not already checked by an interrupt and runs until told to stop
  */
@@ -656,12 +631,14 @@ static int xra1405_check_level_thread(void* data) {
 
     while (!kthread_should_stop() && !xra->stop_level_check_thread) {
         if (xra->irq_allocated) {
+            disable_irq(xra->irq);
             do_gettimeofday(&cur_time);
             ns_since_irq = timeval_to_ns(&cur_time) - timeval_to_ns(&xra->last_irq_time);
 
             /* check if an interrupt has made this check unnecessary */
             if (ns_since_irq > ((s64) xra->level_check_interval_ms) * NSEC_PER_MSEC) {
-                xra1405_sync_read_isr_gsr(xra);
+                /* call irq, this will re-enable interrupts when done */
+                xra1405_irq(xra);
             }
         }
         msleep(xra->level_check_interval_ms);
