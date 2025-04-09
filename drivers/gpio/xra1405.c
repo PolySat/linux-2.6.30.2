@@ -130,7 +130,7 @@ struct xra1405 {
     struct timeval last_irq_time;
     unsigned int level_check_interval_ms;
     struct task_struct *level_check_thread;
-    int stop_level_checking_thread;
+    int stop_level_check_thread;
 };
 
 static int xra1405_read(struct xra1405 *xra, unsigned reg)
@@ -654,7 +654,7 @@ static int xra1405_check_level_thread(void* data) {
     struct timeval cur_time;
     s64 ns_since_irq;
 
-    while (!kthread_should_stop() && !xra->stop_level_checking_thread) {
+    while (!kthread_should_stop() && !xra->stop_level_check_thread) {
         if (xra->irq_allocated) {
             do_gettimeofday(&cur_time);
             ns_since_irq = timeval_to_ns(&cur_time) - timeval_to_ns(&xra->last_irq_time);
@@ -710,7 +710,7 @@ static int xra1405_irq_setup(struct xra1405 *xra)
     }
 
     if (xra->level_check_interval_ms) {
-        xra->stop_level_checking_thread = 0;
+        xra->stop_level_check_thread = 0;
         xra->level_check_thread = kthread_run(&xra1405_check_level_thread, (void *) xra, "xra1405_level_check%d", xra->irq);
         if (IS_ERR(xra->level_check_thread)) {
              return PTR_ERR(xra->level_check_thread);
@@ -737,7 +737,7 @@ static void xra1405_irq_teardown(struct xra1405 *xra, int cleanup_irq)
      */
 
     if (cleanup_irq) {
-        xra->stop_level_checking_thread = 1;
+        xra->stop_level_check_thread = 1;
         free_irq(xra->irq, xra);
     }
 }
