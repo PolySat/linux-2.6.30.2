@@ -400,30 +400,8 @@ static void xra1405_isr_gsr_read_complete(void *context)
     //                                 xra->cache[XRA1405_CACHE_ISR],
     //                                 xra->cache[XRA1405_CACHE_GSR]);
 
-    /* Fire any nested IRQ if it is enabled */
-    for (i=0; i < xra->chip.ngpio; i++) {
-        /* skip if nested irq is masked */
-        if (xra->irq_soft_mask & BIT(i)) {
-            continue;
-        }
-
-
-        if (xra->cache[XRA1405_CACHE_ISR] & BIT(i)) {
-            generic_handle_irq(xra->chip.base + i);
-        } else {
-            /* handles where a rising or falling interrupt happens between ISR and GSR read */
-            if (xra->irq_fall_mask & BIT(i) && xra->irq_rise_mask & BIT(i)) {
-                /* we can't say anything if it's both a rising and falling edge interrupt */
-                continue;
-            } else if (xra->irq_rise_mask & BIT(i) && (xra->cache[XRA1405_CACHE_GSR] & BIT(i))) {
-                /* if it's rising edge and we missed it it will be high and not masked (by the driver that allocated the interrupt)*/
-                generic_handle_irq(xra->chip.base + i);
-                /* if it's falling edge and we missed it it will be low and not masked (by the driver that allocated the interrupt)*/
-            } else if (xra->irq_fall_mask & BIT(i) && !(xra->cache[XRA1405_CACHE_GSR] & BIT(i))) {
-                generic_handle_irq(xra->chip.base + i);
-            }
-        }
-    }
+    /* non-blocking call to fire nested irqs using the cached values we just set */
+    xra1405_fire_nested_irqs(xra);
 
     /* Un-mask the IRQ */
     enable_irq(xra->irq);
@@ -611,11 +589,65 @@ static void xra1405_irq_shutdown(unsigned int irq)
     mutex_unlock(&xra->lock);
 }
 
-/* Optional feature to check level every check_level_interval to remedy a missed interrupt */
+/*
+ * \brief Fires nested irqs using cached register values (should be set previously), does not sleep
+ */
+void xra1405_fire_nested_irqs(struct xra1405* xra) {
+    int i;
+
+    for (i = 0; i < xra->chip.ngpio; i++) {
+        /* skip if nested irq is masked (as a consequence, we only look at pins with allocated interrupts) */
+        if (xra->irq_soft_mask & BIT(i)) {
+            continue;
+        }
+
+        /* if ISR shows an interrupt, call the interrupt handler */
+        if (xra->cache[XRA1405_CACHE_ISR] & BIT(i)) {
+            generic_handle_irq(xra->chip.base + i);
+        } else {
+            /* handles where a rising or falling interrupt happens between ISR and GSR read */
+            if (xra->irq_fall_mask & BIT(i) && xra->irq_rise_mask & BIT(i)) {
+                /* we can't say anything if it's both a rising and falling edge interrupt */
+                continue;
+            } else if (xra->irq_rise_mask & BIT(i) && (xra->cache[XRA1405_CACHE_GSR] & BIT(i))) {
+                /* if we missed rising edge it will be high and not masked (by driver that allocated the interrupt) */
+                generic_handle_irq(xra->chip.base + i);
+            } else if (xra->irq_fall_mask & BIT(i) && !(xra->cache[XRA1405_CACHE_GSR] & BIT(i))) {
+                /* if we missed falling edge it will be low and not masked (by driver that allocated the interrupt) */
+                generic_handle_irq(xra->chip.base + i);
+            }
+        }
+    }
+}
+
+
+/*
+ * \brief Blocking call to read isr and gsr and calls any nested interrupts
+ */
+void xra1405_sync_read_isr_gsr(struct xra1405* xra) {
+    int isr, gsr;
+
+    isr = xra1405_read16(xra, XRA1405_REG_ISR);
+    if (isr < 0)
+        return;
+    gsr = xra1405_read16(xra, XRA1405_REG_GSR);
+    if (gsr < 0)
+        return;
+
+    xra->cache[XRA1405_CACHE_ISR] = isr;
+    xra->cache[XRA1405_CACHE_GSR] = gsr;
+
+    xra1405_fire_nested_irqs(xra);
+}
+
+/*
+ * \brief Optional feature to check level every check_level_interval to remedy a missed interrupt, blocking (sleeps)
+ */
 static enum hrtimer_restart xra1405_check_level(struct hrtimer *timer) {
     struct xra1405 *xra;
     struct timeval cur_time;
     ktime_t ktime_since_irq;
+    int isr, gsr;
 
     xra = container_of(timer, struct xra1405, level_check_hrtimer);
 
@@ -626,7 +658,12 @@ static enum hrtimer_restart xra1405_check_level(struct hrtimer *timer) {
 
         /* check if an interrupt has made this check unnecessary */
         if (ktime_us_delta(ktime_since_irq, xra->level_check_interval) > 0) {
-            generic_handle_irq(xra->irq);
+            
+            mutex_lock(&xra->lock);
+
+            xra1405_sync_read_isr_gsr(xra);
+
+            mutex_unlock(&xra->lock);
         }
     }
 
