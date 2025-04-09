@@ -649,7 +649,7 @@ void xra1405_sync_read_isr_gsr(struct xra1405* xra) {
 /*
  * \brief Optional feature to check level every check_level_interval to remedy a missed interrupt, blocking (sleeps)
  */
-static void xra1405_check_level_thread(void* data) {
+static int xra1405_check_level_thread(void* data) {
     struct xra1405 *xra = data;
     struct timeval cur_time;
     s64 ns_since_irq;
@@ -666,6 +666,8 @@ static void xra1405_check_level_thread(void* data) {
         }
         msleep(xra->level_check_interval_ms);
     }
+
+    return 0;
 }
 
 /* Define the IRQ chip structure with the functions we have created */
@@ -709,7 +711,7 @@ static int xra1405_irq_setup(struct xra1405 *xra)
 
     if (xra->level_check_interval_ms) {
         xra->stop_level_checking_thread = 1;
-        xra->level_check_thread = kthread_run(xra1405_check_level_thread, xra, "xra1405_level_check%d", xra->irq);
+        xra->level_check_thread = kthread_run(xra1405_check_level_thread, (void *) xra, "xra1405_level_check%d", xra->irq);
         if (IS_ERR(xra->level_check_thread)) {
              return PTR_ERR(xra->level_check_thread);
         }
