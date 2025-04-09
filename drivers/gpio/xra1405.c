@@ -647,7 +647,7 @@ void xra1405_sync_read_isr_gsr(struct xra1405* xra) {
 }
 
 /*
- * \brief Optional feature to check level every check_level_interval to remedy a missed interrupt, blocking (sleeps)
+ * \brief Thread to handle level checking feature, checks if not already checked by an interrupt and runs until told to stop
  */
 static int xra1405_check_level_thread(void* data) {
     struct xra1405 *xra = data;
@@ -711,7 +711,7 @@ static int xra1405_irq_setup(struct xra1405 *xra)
 
     if (xra->level_check_interval_ms) {
         xra->stop_level_checking_thread = 1;
-        xra->level_check_thread = kthread_run(xra1405_check_level_thread, (void *) xra, "xra1405_level_check%d", xra->irq);
+        xra->level_check_thread = kthread_run(&xra1405_check_level_thread, (void *) xra, "xra1405_level_check%d", xra->irq);
         if (IS_ERR(xra->level_check_thread)) {
              return PTR_ERR(xra->level_check_thread);
         }
