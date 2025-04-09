@@ -660,7 +660,7 @@ static int xra1405_check_level_thread(void* data) {
             ns_since_irq = timeval_to_ns(&cur_time) - timeval_to_ns(&xra->last_irq_time);
 
             /* check if an interrupt has made this check unnecessary */
-            if (ns_since_irq < ((s64) xra->level_check_interval_ms) * NSEC_PER_MSEC) {
+            if (ns_since_irq > ((s64) xra->level_check_interval_ms) * NSEC_PER_MSEC) {
                 xra1405_sync_read_isr_gsr(xra);
             }
         }
@@ -710,7 +710,7 @@ static int xra1405_irq_setup(struct xra1405 *xra)
     }
 
     if (xra->level_check_interval_ms) {
-        xra->stop_level_checking_thread = 1;
+        xra->stop_level_checking_thread = 0;
         xra->level_check_thread = kthread_run(&xra1405_check_level_thread, (void *) xra, "xra1405_level_check%d", xra->irq);
         if (IS_ERR(xra->level_check_thread)) {
              return PTR_ERR(xra->level_check_thread);
@@ -737,7 +737,7 @@ static void xra1405_irq_teardown(struct xra1405 *xra, int cleanup_irq)
      */
 
     if (cleanup_irq) {
-        xra->stop_level_checking_thread = 0;
+        xra->stop_level_checking_thread = 1;
         free_irq(xra->irq, xra);
     }
 }
