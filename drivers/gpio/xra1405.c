@@ -31,6 +31,7 @@
 #include <linux/workqueue.h>
 #include <linux/delay.h>
 #include <linux/irq.h>
+#include <linux/kthread.h>
 #include <asm/processor.h>
 #include <asm/hw_irq.h>
 #include <linux/irqnr.h>
@@ -656,10 +657,10 @@ static void xra1405_check_level_thread(void* data) {
     while (!kthread_should_stop() && !xra->stop_level_checking_thread) {
         if (xra->irq_allocated) {
             do_gettimeofday(&cur_time);
-            ns_since_irq = timeval_to_ns(cur_time) - timeval_to_ns(xra->last_irq_time));
+            ns_since_irq = timeval_to_ns(&cur_time) - timeval_to_ns(&xra->last_irq_time);
 
             /* check if an interrupt has made this check unnecessary */
-            if (timeval_to_ns(time_since_irq) < ((s64) xra->level_check_interval_ms) * NSEC_PER_MSEC) {
+            if (ns_since_irq < ((s64) xra->level_check_interval_ms) * NSEC_PER_MSEC) {
                 xra1405_sync_read_isr_gsr(xra);
             }
         }
@@ -683,7 +684,6 @@ static int xra1405_irq_setup(struct xra1405 *xra)
 {
     struct gpio_chip *chip = &xra->chip;
     int err, irq, j;
-    char *thread_name;
 
     for (j = 0; j < xra->chip.ngpio; j++) {
         irq = xra->chip.base + j;
