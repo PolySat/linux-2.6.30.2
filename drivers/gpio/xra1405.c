@@ -624,7 +624,7 @@ static void xra1405_irq_shutdown(unsigned int irq)
 /*
  * \brief Timer callback to handle level checking, checks if not already checked by an interrupt. Does not sleep
  */
-static int xra1405_check_level(struct hrtimer* timer) {
+static enum hrtimer_restart xra1405_check_level(struct hrtimer* timer) {
     struct xra1405 *xra;
     struct timeval cur_time;
 
@@ -637,7 +637,7 @@ static int xra1405_check_level(struct hrtimer* timer) {
         /* check if an interrupt has made this check unnecessary */
         if (timeval_to_ns(&cur_time) - timeval_to_ns(&xra->last_irq_time) > xra->level_check_interval_ns) {
             /* call irq, this will re-enable the interrupt when done */
-            xra1405_irq(xra);
+            xra1405_irq(xra->irq, xra);
         }
     }
 
@@ -711,8 +711,8 @@ static void xra1405_irq_teardown(struct xra1405 *xra, int cleanup_irq)
      */
 
     if (cleanup_irq) {
-        if (xra->level_check_interval_ns && xra->level_check_hrtimer)
-            hrtimer_stop(xra->level_check_hrtimer);
+        if (xra->level_check_interval_ns)
+            hrtimer_cancel(&xra->level_check_hrtimer);
         free_irq(xra->irq, xra);
     }
 }
