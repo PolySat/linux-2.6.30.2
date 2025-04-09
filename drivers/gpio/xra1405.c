@@ -630,14 +630,12 @@ static enum hrtimer_restart xra1405_check_level(struct hrtimer* timer) {
 
     xra = container_of(timer, struct xra1405, level_check_hrtimer);
     if (xra->irq_allocated) {
-        disable_irq_nosync(xra->irq);
 
+        /* Checks if we recently had an interrupt, if so this check is probably unnecessary */
         do_gettimeofday(&cur_time);
-
-        /* check if an interrupt has made this check unnecessary */
-        if (timeval_to_ns(&cur_time) - timeval_to_ns(&xra->last_irq_time) > xra->level_check_interval_ns) {
-            /* call irq, this will re-enable the interrupt when done */
-            xra1405_irq(xra->irq, xra);
+        if (timeval_to_ns(&cur_time) - timeval_to_ns(&xra->last_irq_time) > xra->level_check_interval_ns + (1 * NSEC_PER_MSEC)) {
+            /* this should respect the IRQ is masked */
+            generic_handle_irq(xra->irq);
         }
     }
 
