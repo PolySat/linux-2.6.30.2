@@ -612,10 +612,12 @@ static void xra1405_irq_shutdown(unsigned int irq)
 }
 
 /* Optional feature to check level every check_level_interval to remedy a missed interrupt */
-static int xra1405_check_level(void *data) {
-    struct xra1405 *xra = data;
+static int xra1405_check_level(struct hrtimer timer) {
+    struct xra1405 *xra;
     struct timeval cur_time;
     ktime_t ktime_since_irq;
+
+    xra = container_of(timer, struct xra1405, level_check_hrtimer);
 
     if (xra->irq_allocated) {
 
@@ -674,7 +676,6 @@ static int xra1405_irq_setup(struct xra1405 *xra)
     if (!ktime_equal(xra->level_check_interval, ktime_set(0, 0))) {
         hrtimer_init(&xra->level_check_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
         xra->level_check_hrtimer.function = &xra1405_check_level;
-        xra->level_check_hrtimer.data = xra;
         /* start the level check timer, if this fails it means the timer was already started */
         hrtimer_start(&xra->level_check_hrtimer, xra->level_check_interval, HRTIMER_MODE_REL);
     }
