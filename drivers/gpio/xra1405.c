@@ -376,6 +376,37 @@ static void xra1405_set(struct gpio_chip *chip, unsigned offset, int value)
     mutex_unlock(&xra->lock);
 }
 
+/*
+ * \brief Fires nested irqs using cached register values (should be set previously), does not sleep
+ */
+void xra1405_fire_nested_irqs(struct xra1405* xra) {
+    int i;
+
+    for (i = 0; i < xra->chip.ngpio; i++) {
+        /* skip if nested irq is masked (as a consequence, we only look at pins with allocated interrupts) */
+        if (xra->irq_soft_mask & BIT(i)) {
+            continue;
+        }
+
+        /* if ISR shows an interrupt, call the interrupt handler */
+        if (xra->cache[XRA1405_CACHE_ISR] & BIT(i)) {
+            generic_handle_irq(xra->chip.base + i);
+        } else {
+            /* handles where a rising or falling interrupt happens between ISR and GSR read */
+            if (xra->irq_fall_mask & BIT(i) && xra->irq_rise_mask & BIT(i)) {
+                /* we can't say anything if it's both a rising and falling edge interrupt */
+                continue;
+            } else if (xra->irq_rise_mask & BIT(i) && (xra->cache[XRA1405_CACHE_GSR] & BIT(i))) {
+                /* if we missed rising edge it will be high and not masked (by driver that allocated the interrupt) */
+                generic_handle_irq(xra->chip.base + i);
+            } else if (xra->irq_fall_mask & BIT(i) && !(xra->cache[XRA1405_CACHE_GSR] & BIT(i))) {
+                /* if we missed falling edge it will be low and not masked (by driver that allocated the interrupt) */
+                generic_handle_irq(xra->chip.base + i);
+            }
+        }
+    }
+}
+
 /**
  * \brief Stores LSB of GSR register in cache, calls nested IRQs, and reenables IRQ
  * Called by SPI read completion asynchronously (by irq handler), cannot sleep
@@ -413,36 +444,6 @@ err_data:
     enable_irq(xra->irq);
 }
 
-/*
- * \brief Fires nested irqs using cached register values (should be set previously), does not sleep
- */
-void xra1405_fire_nested_irqs(struct xra1405* xra) {
-    int i;
-
-    for (i = 0; i < xra->chip.ngpio; i++) {
-        /* skip if nested irq is masked (as a consequence, we only look at pins with allocated interrupts) */
-        if (xra->irq_soft_mask & BIT(i)) {
-            continue;
-        }
-
-        /* if ISR shows an interrupt, call the interrupt handler */
-        if (xra->cache[XRA1405_CACHE_ISR] & BIT(i)) {
-            generic_handle_irq(xra->chip.base + i);
-        } else {
-            /* handles where a rising or falling interrupt happens between ISR and GSR read */
-            if (xra->irq_fall_mask & BIT(i) && xra->irq_rise_mask & BIT(i)) {
-                /* we can't say anything if it's both a rising and falling edge interrupt */
-                continue;
-            } else if (xra->irq_rise_mask & BIT(i) && (xra->cache[XRA1405_CACHE_GSR] & BIT(i))) {
-                /* if we missed rising edge it will be high and not masked (by driver that allocated the interrupt) */
-                generic_handle_irq(xra->chip.base + i);
-            } else if (xra->irq_fall_mask & BIT(i) && !(xra->cache[XRA1405_CACHE_GSR] & BIT(i))) {
-                /* if we missed falling edge it will be low and not masked (by driver that allocated the interrupt) */
-                generic_handle_irq(xra->chip.base + i);
-            }
-        }
-    }
-}
 
 /* \brief IRQ handler
  * Masks IRQ until reenabled by ISR and GSR registers read completion & nested interrupts sent out
