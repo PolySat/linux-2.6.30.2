@@ -834,7 +834,7 @@ static int __devinit xra1405_probe(struct spi_device *spi)
         xra->shared_irq_time = pdata->shared_irq_time;
 
     if (pdata)
-        xra->level_check_interval = ns_to_ktime(pdata->level_check_interval_ms * 1000000);
+        xra->level_check_interval = ns_to_ktime((u64) pdata->level_check_interval_ms * 1000000ULL);
     else
         xra->level_check_interval = ktime_set(0, 0);
 

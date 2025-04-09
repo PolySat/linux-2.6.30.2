@@ -13,7 +13,7 @@ struct xra1405_platform_data {
      * "base" is the number of the first GPIO registered. The GPIO numbers
      * are sequential.
      */
-    unsigned    base;
+    unsigned int base;
     struct timeval *shared_irq_time;
     unsigned int level_check_interval_ms;
 
