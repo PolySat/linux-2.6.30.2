@@ -31,7 +31,8 @@
 #include <linux/workqueue.h>
 #include <linux/delay.h>
 #include <linux/irq.h>
-#include <linux/kthread.h>
+#include <linux/hrtimer.h>
+#include <linux/ktime.h>
 #include <asm/processor.h>
 #include <asm/hw_irq.h>
 #include <linux/irqnr.h>
@@ -128,9 +129,8 @@ struct xra1405 {
     struct timeval *shared_irq_time;
 
     struct timeval last_irq_time;
-    unsigned int level_check_interval_ms;
-    struct task_struct *level_check_thread;
-    int stop_level_check_thread;
+    struct hrtimer level_check_hrtimer;
+    s64 level_check_interval_ns;
 };
 
 static int xra1405_read(struct xra1405 *xra, unsigned reg)
@@ -622,29 +622,27 @@ static void xra1405_irq_shutdown(unsigned int irq)
 }
 
 /*
- * \brief Thread to handle level checking feature, checks if not already checked by an interrupt and runs until told to stop
+ * \brief Timer callback to handle level checking, checks if not already checked by an interrupt. Does not sleep
  */
-static int xra1405_check_level_thread(void* data) {
-    struct xra1405 *xra = data;
+static int xra1405_check_level(struct hrtimer* timer) {
+    struct xra1405 *xra;
     struct timeval cur_time;
-    s64 ns_since_irq;
 
-    while (!kthread_should_stop() && !xra->stop_level_check_thread) {
-        if (xra->irq_allocated) {
-            disable_irq(xra->irq);
-            do_gettimeofday(&cur_time);
-            ns_since_irq = timeval_to_ns(&cur_time) - timeval_to_ns(&xra->last_irq_time);
+    xra = container_of(timer, struct xra1405, level_check_hrtimer);
+    if (xra->irq_allocated) {
+        disable_irq_nosync(xra->irq);
 
-            /* check if an interrupt has made this check unnecessary */
-            if (ns_since_irq > ((s64) xra->level_check_interval_ms) * NSEC_PER_MSEC) {
-                /* call irq, this will re-enable interrupts when done */
-                xra1405_irq(xra);
-            }
+        do_gettimeofday(&cur_time);
+
+        /* check if an interrupt has made this check unnecessary */
+        if (timeval_to_ns(&cur_time) - timeval_to_ns(&xra->last_irq_time) > xra->level_check_interval_ns) {
+            /* call irq, this will re-enable the interrupt when done */
+            xra1405_irq(xra);
         }
-        msleep(xra->level_check_interval_ms);
     }
 
-    return 0;
+    hrtimer_forward_now(&xra->level_check_hrtimer, ns_to_ktime(xra->level_check_interval_ns));
+    return HRTIMER_RESTART;
 }
 
 /* Define the IRQ chip structure with the functions we have created */
@@ -686,12 +684,11 @@ static int xra1405_irq_setup(struct xra1405 *xra)
         return err;
     }
 
-    if (xra->level_check_interval_ms) {
-        xra->stop_level_check_thread = 0;
-        xra->level_check_thread = kthread_run(&xra1405_check_level_thread, (void *) xra, "xra1405_level_check%d", xra->irq);
-        if (IS_ERR(xra->level_check_thread)) {
-             return PTR_ERR(xra->level_check_thread);
-        }
+
+    if (xra->level_check_interval_ns) {
+        hrtimer_init(&xra->level_check_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+        xra->level_check_hrtimer.function = &xra1405_check_level;
+        hrtimer_start(&xra->level_check_hrtimer, ns_to_ktime(xra->level_check_interval_ns), HRTIMER_MODE_REL);
     }
 
     return 0;
@@ -714,7 +711,8 @@ static void xra1405_irq_teardown(struct xra1405 *xra, int cleanup_irq)
      */
 
     if (cleanup_irq) {
-        xra->stop_level_check_thread = 1;
+        if (xra->level_check_interval_ns && xra->level_check_hrtimer)
+            hrtimer_stop(xra->level_check_hrtimer);
         free_irq(xra->irq, xra);
     }
 }
@@ -847,9 +845,9 @@ static int __devinit xra1405_probe(struct spi_device *spi)
         xra->shared_irq_time = pdata->shared_irq_time;
 
     if (pdata)
-        xra->level_check_interval_ms = pdata->level_check_interval_ms;
+        xra->level_check_interval_ns = ((s64) pdata->level_check_interval_ms) * NSEC_PER_MSEC;
     else
-        xra->level_check_interval_ms = 0;
+        xra->level_check_interval_ns = 0;
 
 
     /* Register the number of GPIO the chip has */
