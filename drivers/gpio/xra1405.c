@@ -612,7 +612,7 @@ static void xra1405_irq_shutdown(unsigned int irq)
 }
 
 /* Optional feature to check level every check_level_interval to remedy a missed interrupt */
-static int xra1405_check_level(struct hrtimer *timer) {
+static enum hrtimer_restart xra1405_check_level(struct hrtimer *timer) {
     struct xra1405 *xra;
     struct timeval cur_time;
     ktime_t ktime_since_irq;
