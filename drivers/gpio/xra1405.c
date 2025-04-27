@@ -463,7 +463,7 @@ static irqreturn_t xra1405_irq(int irq, void *data)
     add_async_spi_read(xra, XRA1405_REG_ISR, 0);
     add_async_spi_read(xra, XRA1405_REG_ISR_MSB, 1);
     add_async_spi_read(xra, XRA1405_REG_GSR, 2);
-    add_async_spi_read(xra, XRA1405_REG_GSR_MSB, 2);
+    add_async_spi_read(xra, XRA1405_REG_GSR_MSB, 3);
 
     xra->spi_msg.complete = xra1405_isr_gsr_read_complete;
 
