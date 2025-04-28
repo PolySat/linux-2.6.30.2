@@ -26,8 +26,6 @@
 #include <linux/gpio.h>
 #include <linux/spi/spi.h>
 #include <linux/interrupt.h>
-//#include <linux/of_irq.h>
-//#include <linux/of_device.h>
 #include <linux/workqueue.h>
 #include <linux/delay.h>
 #include <linux/irq.h>
@@ -99,7 +97,10 @@
 #define MAKE_ALIAS(base, n) base #n
 
 struct xra1405 {
-    u16         cache[XRA1405_CACHE_COUNT]; /* Cache of the chip registers (in pairs) */
+    /* Cache of the chip registers (in pairs) */
+    u16         cache[XRA1405_CACHE_COUNT]; 
+
+    /* IRQ masks and flags */
     u16         irq_rise_mask;
     u16         irq_fall_mask;
     u16         irq_enabled_mask;
