@@ -96,6 +96,13 @@
 
 #define MAKE_ALIAS(base, n) base #n
 
+struct xra1405;
+
+struct reg_msg_context {
+    struct xra1405* xra;
+    u8 reg;
+};
+
 struct xra1405 {
     /* Cache of the chip registers (in pairs) */
     u16         cache[XRA1405_CACHE_COUNT]; 
@@ -108,6 +115,7 @@ struct xra1405 {
     u16         irq_soft_mask;
     int         irq;
 
+
     /* Mutex for xra synchronous reading and writing */
     struct mutex        lock;
 
@@ -116,6 +124,16 @@ struct xra1405 {
     /* SPI message structures */
     struct spi_message   spi_msg;
     struct spi_transfer  spi_xfer[XRA1405_READ_ASYNC_BUF_MAX * 2];
+
+    /* irq_chip masks and async spi for non-blocking */
+    u32         reg_need_write;
+    u32         reg_write_in_progress;
+    struct spi_message   async_write_spi_msgs[XRA1405_REG_COUNT];
+    struct spi_transfer  async_write_spi_xfer[XRA1405_REG_COUNT];
+    u8                   async_write_tx_buf[XRA1405_REG_COUNT * 2];
+    /* used to pass register number and xra in context of async spi callback */
+    struct reg_msg_context reg_msg_contexts[XRA1405_REG_COUNT];
+
 
     /* tx and rx buffers */
     u8                   tx_buf_async[XRA1405_READ_ASYNC_BUF_MAX];
@@ -473,6 +491,81 @@ static irqreturn_t xra1405_irq(int irq, void *data)
     return IRQ_HANDLED;
 }
 
+
+static u8 xra1405_get_cache_val8(struct xra1405* xra, u8 reg) {
+    if (reg % 2 == 0) {
+        return xra->cache[reg / 2] & 0xFF;
+    } else {
+        return (xra->cache[reg / 2] & 0xFF00) >> 8;
+    }
+}
+
+static void xra1405_async_write_flush(struct xra1405* xra);
+
+static void xra1405_async_spi_write_complete(void *context) {
+    struct reg_msg_context *reg_msg_context = context;
+    struct xra1405* xra = reg_msg_context->xra;
+    u8 write_completed_reg = reg_msg_context->reg;
+
+    xra->reg_write_in_progress &= ~BIT(write_completed_reg);
+    xra1405_async_write_flush(xra);
+}
+
+static void xra1405_send_async_spi_write8(struct xra1405 *xra, u8 reg, u8 val) {
+    struct spi_device *spi = xra->data;
+
+    spi_message_init(&xra->async_write_spi_msgs[reg]);
+
+    /* command byte (8 bits) */
+    xra->async_write_tx_buf[reg * 2] = XRA1405_WRITE(reg);
+    /* value to write (8 bits) */
+    xra->async_write_tx_buf[reg * 2 + 1] = val;
+
+    memset(&xra->async_write_spi_xfer[reg], 0, sizeof(struct spi_transfer));
+    xra->async_write_spi_xfer[reg].tx_buf = xra->async_write_tx_buf + (reg * 2);
+    xra->async_write_spi_xfer[reg].rx_buf = NULL;
+    xra->async_write_spi_xfer[reg].len = 2;
+    spi_message_add_tail(&xra->async_write_spi_xfer[reg], &xra->async_write_spi_msgs[reg]);
+
+    xra->async_write_spi_msgs[reg].context = &xra->reg_msg_contexts[reg];
+    xra->async_write_spi_msgs[reg].complete = xra1405_async_spi_write_complete;
+
+    spi_async(spi, &xra->async_write_spi_msgs[reg]);
+}
+
+static void xra1405_async_write_flush(struct xra1405* xra) {
+    int reg;
+    
+    for (reg = 0; reg < XRA1405_REG_COUNT; reg++) {
+        if (xra->reg_need_write & BIT(reg) && !(xra->reg_write_in_progress & BIT(reg))) {
+            xra->reg_write_in_progress |= BIT(reg);
+            xra->reg_need_write &= ~BIT(reg);
+            xra1405_send_async_spi_write8(xra, reg, xra1405_get_cache_val8(xra, reg));
+        }
+    }
+}
+
+static void xra1405_async_set_cache_bit(struct xra1405* xra, u8 reg, u8 offset, u8 set) {
+    /* Get the 16-bit value we have cached */
+    unsigned val = xra->cache[reg];
+
+    /* Set or unset the value in the cache as requested */
+    if (set) {
+        val |= BIT(offset);
+        xra->cache[reg] = val;
+    } else {
+        val &= ~BIT(offset);
+        xra->cache[reg] = val;
+    }
+
+    /* Mark specific register (8 bit registers) needs to be written */
+    if (offset > 7) {
+        xra->reg_need_write |= BIT(reg * 2 + 1);
+    } else {
+        xra->reg_need_write |= BIT(reg * 2);
+    }
+}
+
 static void xra1405_irq_mask(unsigned int irq)
 {
     struct xra1405 *xra = (struct xra1405*)get_irq_chip_data(irq);
@@ -540,7 +633,9 @@ static void xra1405_irq_enable(unsigned int irq)
     struct xra1405 *xra = (struct xra1405*)get_irq_chip_data(irq);
     int pos = irq - xra->chip.base;
 
-    __xra1405_bit(xra, XRA1405_CACHE_IER, pos, 1);
+    xra->irq_soft_mask &= ~BIT(pos);
+    xra1405_async_set_cache_bit(xra, XRA1405_CACHE_IER, pos, 1);
+    xra1405_async_write_flush(xra);
     // printk("_enable %d\n", pos);
 }
 
@@ -549,7 +644,9 @@ static void xra1405_irq_disable(unsigned int irq)
     struct xra1405 *xra = (struct xra1405*)get_irq_chip_data(irq);
     int pos = irq - xra->chip.base;
 
-    __xra1405_bit(xra, XRA1405_CACHE_IER, pos, 0);
+    xra->irq_soft_mask |= BIT(pos);
+    xra1405_async_set_cache_bit(xra, XRA1405_CACHE_IER, pos, 0);
+    xra1405_async_write_flush(xra);
     // printk("_disable %d\n", pos);
 }
 
@@ -714,6 +811,11 @@ static int xra1405_probe_one(struct xra1405 *xra, struct device *dev,
         names[i] = kasprintf(GFP_KERNEL, "gpio%d", i + xra->chip.base);
 
     xra->chip.names = (char **)names;
+
+    for (i = 0; i < XRA1405_REG_COUNT; i++) {
+        xra->reg_msg_contexts[i].xra = xra;
+        xra->reg_msg_contexts[i].reg = i;
+    }
 
     /* Force all GPIOs to be inputs at the beginning */
     status = xra1405_write16(xra, XRA1405_REG_GCR, 0xFFFF);
