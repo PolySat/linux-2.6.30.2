@@ -634,8 +634,8 @@ static void xra1405_irq_enable(unsigned int irq)
     int pos = irq - xra->chip.base;
 
     xra->irq_soft_mask &= ~BIT(pos);
-    xra1405_async_set_cache_bit(xra, XRA1405_CACHE_IER, pos, 1);
-    xra1405_async_write_flush(xra);
+    //xra1405_async_set_cache_bit(xra, XRA1405_CACHE_IER, pos, 1);
+    //xra1405_async_write_flush(xra);
     // printk("_enable %d\n", pos);
 }
 
@@ -645,8 +645,8 @@ static void xra1405_irq_disable(unsigned int irq)
     int pos = irq - xra->chip.base;
 
     xra->irq_soft_mask |= BIT(pos);
-    xra1405_async_set_cache_bit(xra, XRA1405_CACHE_IER, pos, 0);
-    xra1405_async_write_flush(xra);
+    //xra1405_async_set_cache_bit(xra, XRA1405_CACHE_IER, pos, 0);
+    //xra1405_async_write_flush(xra);
     // printk("_disable %d\n", pos);
 }
 
