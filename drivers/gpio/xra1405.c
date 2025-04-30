@@ -10,7 +10,10 @@
  * The driver provides and registers functions to access the GPIOs using the
  * abstraction layer, resolving the access by itself using the SPI interface.
  * It provides function to configure the GPIOs as input or output.
- * It also supports nested interrupts if an IRQ pin was provided.
+ *
+ * It supports nested interrupts if an IRQ pin was provided.
+ * However, the irq_chip operations are blocking, thus the drivers used 
+ * on the nested irq line must not use these operation in a irq context.
  *
  * The definition of the gpio_chip  GPIO controller can be found in
  * <linux/gpio/driver.h>.
