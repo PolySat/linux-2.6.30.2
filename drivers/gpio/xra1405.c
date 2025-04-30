@@ -105,7 +105,7 @@ struct reg_msg_context {
 
 struct xra1405 {
     /* Cache of the chip registers (in pairs) */
-    u16         cache[XRA1405_CACHE_COUNT]; 
+    u16         cache[XRA1405_CACHE_COUNT];
 
     /* IRQ masks and flags */
     u16         irq_rise_mask;
