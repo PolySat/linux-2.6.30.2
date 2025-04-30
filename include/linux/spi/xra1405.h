@@ -28,7 +28,7 @@ struct xra1405_platform_data {
      *  when a nested interrupt is used. This has no effect if no irq is
      *  provided. Input filtering is enabled when no interrupts are used.
      */
-    u32 irq_input_filter;
+    u16 irq_input_filter;
 };
 
 #endif
