@@ -17,11 +17,11 @@ struct xra1405_platform_data {
     struct timeval *shared_irq_time;
 
     /**
-     *  "level_based" makes the irq (if present) use level based interrupts
+     *  "irq_level_based" makes the irq (if present) use level based interrupts
      *  rather than edge based interrupts. This has no effect if no irq
      *  is provided.
      */
-    int level_based;
+     int irq_level_based;
 
     /**
      *  "irq_input_filter" sets which pins should have input filters enabled
