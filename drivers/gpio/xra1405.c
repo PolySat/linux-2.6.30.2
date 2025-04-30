@@ -601,7 +601,7 @@ static void xra1405_irq_shutdown(unsigned int irq)
 {
     struct xra1405 *xra = (struct xra1405*)get_irq_chip_data(irq);
     unsigned int pos = irq - xra->chip.base;
-    unsigned int irq_was_allocated, input_filter;
+    unsigned int irq_was_allocated;
     int i;
 
     // printk("_shutdown %u\n", pos);
@@ -661,7 +661,7 @@ static int xra1405_irq_setup(struct xra1405 *xra)
     }
 
     err = request_irq(xra->irq, xra1405_irq,
-        IRQF_TRIGGER_FALLING | IRQF_DISABLED, XRA1405_MODULE_NAME, xra);
+        trigger | IRQF_DISABLED, XRA1405_MODULE_NAME, xra);
     if (err != 0) {
         dev_err(chip->dev, "unable to request IRQ#%d: %d\n",
                 xra->irq, err);
