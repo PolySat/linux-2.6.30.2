@@ -1,41 +1,34 @@
 #ifndef XRA1405_H
 #define XRA1405_H
 
+#include <linux/types.h>
+
 struct timeval;
 struct xra1405_platform_data {
-    /**
-     * Only one chip is allowed for each chipselect. The chip provides
-     * 1 gpio_chip instance with 16 gpios.
-     */
-    // struct xra1405_chip_info    chip[1];
-
     /**
      * "base" is the number of the first GPIO registered. The GPIO numbers
      * are sequential.
      */
-    unsigned    base;
+    unsigned int base;
+
+    /**
+     *  "shared_irq_time" is updated when an irq occures on the xra1405
+     */
     struct timeval *shared_irq_time;
-    /**
-     * Marks the device as a interrupt controller.
-     */
-    // bool    irq_controller;
 
     /**
-     * Defines which GPIOs will generate an interrupt when the status changes
+     *  "irq_level_trigger" has the irq (if present) use level based interrupts
+     *  rather than edge based interrupts. This has no effect if no irq
+     *  is provided.
      */
-    // u32     irq_enabled_mask;
+     int irq_level_trigger;
 
     /**
-     * Defines which GPIOs will generate an interrupt on the rising edge
+     *  "irq_input_filter" sets which pins should have input filters enabled
+     *  when a nested interrupt is used. This has no effect if no irq is
+     *  provided. Input filtering is enabled when no interrupts are used.
      */
-    // u32     irq_rising_mask;
-
-    /**
-     * Defines which GPIOs will generate an interrupt on the falling edge
-     */
-    // u32     irq_falling_mask;
-
-    // u32     irq;
+    u16 irq_input_filter;
 };
 
 #endif

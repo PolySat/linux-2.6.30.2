@@ -9,7 +9,11 @@
  *
  * The driver provides and registers functions to access the GPIOs using the
  * abstraction layer, resolving the access by itself using the SPI interface.
- * It also provides function to configure the GPIOs as input or output.
+ * It provides function to configure the GPIOs as input or output.
+ *
+ * It supports nested interrupts if an IRQ pin was provided.
+ * However, the irq_chip operations are blocking, thus the drivers used 
+ * on the nested irq line must not use these operation in a irq context.
  *
  * The definition of the gpio_chip  GPIO controller can be found in
  * <linux/gpio/driver.h>.
@@ -25,8 +29,6 @@
 #include <linux/gpio.h>
 #include <linux/spi/spi.h>
 #include <linux/interrupt.h>
-//#include <linux/of_irq.h>
-//#include <linux/of_device.h>
 #include <linux/workqueue.h>
 #include <linux/delay.h>
 #include <linux/irq.h>
@@ -41,8 +43,8 @@
 
 #define XRA_TYPE_1405       0
 
-#define XRA1405_READ(r)     (0x80 | ((r) << 1))
-#define XRA1405_WRITE(r)    (0x00 | ((r) << 1))
+#define XRA1405_READ(r)     (0x80 | ((r) << 1)) /* byte 7 specifies read, byte 0 is reserved */
+#define XRA1405_WRITE(r)    (0x00 | ((r) << 1)) /* byte 7 specifies write, byte 0 is reserved */
 
 #define XRA1405_REG_COUNT   0x16    /* Total number of registers (0x00 to 0x15) */
 
@@ -87,9 +89,10 @@
 /* Total number of cache registers (16 bit) */
 #define XRA1405_CACHE_COUNT XRA1405_REG_COUNT/2
 
-/* Buffer size for asynchronous communications
- * Note that there is no need for more than 2 bytes per channel **/
-#define XRA1405_MAX_BUF     8
+/* Buffer size for asynchronous communications */
+#define XRA1405_READ_ASYNC_BUF_MAX     4
+/* Buffer size for synchronous communications */
+#define XRA1405_READ_SYNC_BUF_MAX     2
 
 #define XRA1405_MODULE_NAME "xra1405"  /* The module name to show in lsmod */
 #define XRA1405_GPIO_NAME   "GPIO-XRA" /* The name to show on /proc/interrupts */
@@ -97,75 +100,76 @@
 #define MAKE_ALIAS(base, n) base #n
 
 struct xra1405 {
-    u16         cache[XRA1405_CACHE_COUNT]; // Cache of the chip registers (in pairs)
-    u32         irq_rise_mask;
-    u32         irq_fall_mask;
-    u32         irq_enabled_mask;
-    u32         irq_allocated;
-    u32         irq_soft_mask;
-    int         irq;
-    struct irq_domain   *irq_domain;
+    /* Cache of the chip registers (in pairs) */
+    u16         cache[XRA1405_CACHE_COUNT]; 
 
-    /* Mutex definition */
+    /* IRQ masks and flags */
+    u16         irq_rise_mask;
+    u16         irq_fall_mask;
+    u16         irq_enabled_mask;
+    u16         irq_allocated;
+    u16         irq_soft_mask;
+    int         irq;
+
+    /* IRQ platform data options */
+    u16         irq_input_filter;
+    int         irq_level_trigger;
+
+    /* Mutex for xra synchronous reading and writing */
     struct mutex        lock;
-    // struct mutex        irq_lock;
 
     struct gpio_chip    chip;
 
-    /* tx and rx buffers */
+    /* SPI message structures */
     struct spi_message   spi_msg;
-    struct spi_transfer  spi_xfer[2];
-    int			padding[64];
-    u8                   tx_buff[3];
-    u8                   rx_buff[3];
+    struct spi_transfer  spi_xfer[XRA1405_READ_ASYNC_BUF_MAX * 2];
 
-    // const struct xra1405_ops    *ops;
+    /* tx and rx buffers */
+    u8                   tx_buf_async[XRA1405_READ_ASYNC_BUF_MAX];
+    u8                   rx_buf_async[XRA1405_READ_ASYNC_BUF_MAX];
+    u8                   tx_buf_sync[XRA1405_READ_SYNC_BUF_MAX];
+    u8                   rx_buf_sync[XRA1405_READ_SYNC_BUF_MAX];
+
     void    *data;
+
     struct timeval *shared_irq_time;
 };
 
-/**
- * This lock class tells lockdep that TPIO irqs are in a different category
- * than their parents, so it won't report false recursion.
- */
-// static struct lock_class_key gpio_lock_class;
-
-static int xra1405_read16(struct xra1405 *xra, unsigned reg)
+static int xra1405_read(struct xra1405 *xra, unsigned reg)
 {
-    u8 tx[1];
     int status;
 
     /* Use the macro to compute the read command byte */
-    tx[0] = XRA1405_READ(reg);
+    xra->tx_buf_sync[0] = XRA1405_READ(reg);
     /* Write 8 bits and read 8 bits synchronously */
-    status = spi_w8r16(xra->data, tx[0]);
-    /* Return the status received, either the value readed or an error */
+    status = spi_w8r8(xra->data, xra->tx_buf_sync[0]);
+    /* Return the status received, either the value read or an error */
     return status;
 }
 
-static int xra1405_read(struct xra1405 *xra, unsigned reg)
+static int xra1405_read16(struct xra1405 *xra, unsigned reg)
 {
-    u8 tx[1];
-    int status;
+        int lsb, msb;
+    lsb = xra1405_read(xra, reg);
+    if (lsb < 0)
+        return lsb;
 
-    /* Use the macro to compute the read command byte */
-    tx[0] = XRA1405_READ(reg);
-    /* Write 8 bits and read 8 bits synchronously */
-    status = spi_w8r8(xra->data, tx[0]);
-    /* Return the status received, either the value readed or an error */
-    return status;
+    msb = xra1405_read(xra, reg + 1);
+    if (msb < 0)
+        return msb;
+
+    return (lsb & 0x00FF) + ((msb & 0x00FF) << 8);
 }
 
 static int xra1405_write(struct xra1405 *xra, unsigned reg, unsigned val)
 {
-    u8 tx[2];
-
-    tx[0] = XRA1405_WRITE(reg);
-    tx[1] = val;
+    xra->tx_buf_sync[0] = XRA1405_WRITE(reg);
+    xra->tx_buf_sync[1] = val;
     /* Just write to the bus and don't try to read anything back */
-    return spi_write(xra->data, tx, sizeof(tx));
+    return spi_write(xra->data, xra->tx_buf_sync, 2);
 }
 
+/* xra lock must be held */
 static int xra1405_write16(struct xra1405 *xra, unsigned reg, u16 val)
 {
     int retval;
@@ -184,22 +188,22 @@ static int xra1405_write16(struct xra1405 *xra, unsigned reg, u16 val)
 static int xra1405_cache_regs(struct xra1405 *xra)
 {
     u8 tmp = 0;
-    u8 tx[1], rx[1], i;
+    u8 i;
     int status;
 
     /* Read each register and store them in the cache */
     for (i=0; i < XRA1405_REG_COUNT; i++) {
         /* Generate the read command */
-        tx[0] = XRA1405_READ(i);
-        status = spi_write_then_read(xra->data, tx, sizeof(tx),
-                rx, sizeof(rx));
+        xra->tx_buf_sync[0] = XRA1405_READ(i);
+        status = spi_write_then_read(xra->data, xra->tx_buf_sync, 1,
+                xra->rx_buf_sync, 1);
         if (status >= 0) {
             if (i%2 == 0) {
                 /* Store the value in a temporary 8 bit variable */
-                tmp = rx[0];
+                tmp = xra->rx_buf_sync[0];
             } else {
                 /* Store the 16bit value in the proper cache variable */
-                xra->cache[(i-1)/2] = (rx[0] << 8) | (tmp & 0x00FF);
+                xra->cache[(i-1)/2] = (xra->rx_buf_sync[0] << 8) | (tmp & 0x00FF);
                 /* Print out initial debug information */
                 dev_dbg(xra->chip.dev, "%s: Initial value for 0x%02X is 0x%04X\n",
                         XRA1405_MODULE_NAME, ((i-1)/2 << 1), xra->cache[(i-1)/2]);
@@ -212,24 +216,29 @@ static int xra1405_cache_regs(struct xra1405 *xra)
     return status;
 }
 
-static void setup_async_spi(struct xra1405 *xra, u8 rd, int len)
+/**
+ * \brief Adds an async read of 8 bits to xra SPI message.
+ * Sets up two transfers in spi_xfer and adds them to the SPI message
+ * read_index is double the transfer index in spi_xfer
+ * read_index must be less than XRA1405_READ_ASYNC_BUF_MAX
+ */
+static void add_async_spi_read(struct xra1405 *xra, u8 reg, int read_index)
 {
-    spi_message_init(&xra->spi_msg);
-    xra->spi_msg.context = xra;
+    /* command byte (8 bits) */
+    xra->tx_buf_async[read_index] = XRA1405_READ(reg);
+    xra->spi_xfer[read_index * 2].tx_buf = xra->tx_buf_async + read_index;
+    xra->spi_xfer[read_index * 2].rx_buf = NULL;
+    xra->spi_xfer[read_index * 2].len = 1;
+    spi_message_add_tail(&xra->spi_xfer[read_index * 2], &xra->spi_msg);
 
-    memset(&xra->spi_xfer, 0, sizeof(xra->spi_xfer));
-
-    xra->tx_buff[0] = XRA1405_READ(rd);
-    xra->spi_xfer[0].tx_buf = xra->tx_buff;
-    xra->spi_xfer[0].len = 1;
-    spi_message_add_tail(&xra->spi_xfer[0], &xra->spi_msg);
-
-    xra->rx_buff[0] = 0xBB;
-    xra->rx_buff[1] = 0xCC;
-    xra->rx_buff[2] = 0xDD;
-    xra->spi_xfer[1].rx_buf = xra->rx_buff;
-    xra->spi_xfer[1].len = len;
-    spi_message_add_tail(&xra->spi_xfer[1], &xra->spi_msg);
+    /* response receive (8 bits) */
+    xra->rx_buf_async[read_index] = 0x00;
+    xra->spi_xfer[read_index * 2 + 1].rx_buf = xra->rx_buf_async + read_index;
+    xra->spi_xfer[read_index * 2 + 1].tx_buf = NULL;
+    xra->spi_xfer[read_index * 2 + 1].len = 1;
+    /* deselect chip select inbetween individual reads, shown on timing sheet on datasheet */
+    xra->spi_xfer[read_index * 2 + 1].cs_change = 1;
+    spi_message_add_tail(&xra->spi_xfer[read_index * 2 + 1], &xra->spi_msg);
 }
 
 /**
@@ -277,7 +286,7 @@ static int __xra1405_bit(struct xra1405 *xra, unsigned reg, unsigned offset,
 static int xra1405_direction_input(struct gpio_chip *chip, unsigned offset)
 {
     struct xra1405 *xra = container_of(chip, struct xra1405, chip);
-    int status;
+    int status, input_filter;
 
     // printk("direction input\n");
 
@@ -286,9 +295,10 @@ static int xra1405_direction_input(struct gpio_chip *chip, unsigned offset)
     /* Write the GPIO Configuration Register */
     status = __xra1405_bit(xra, XRA1405_CACHE_GCR, offset, 1);
     if (xra->irq_allocated) {
+        input_filter = !!(xra->irq_input_filter & BIT(offset));
         __xra1405_bit(xra, XRA1405_CACHE_REIR, offset, 1);
         __xra1405_bit(xra, XRA1405_CACHE_FEIR, offset, 1);
-        __xra1405_bit(xra, XRA1405_CACHE_IFR, offset, 0);
+        __xra1405_bit(xra, XRA1405_CACHE_IFR, offset, input_filter);
         __xra1405_bit(xra, XRA1405_CACHE_IER, offset, 1);
     }
 
@@ -370,27 +380,62 @@ static void xra1405_set(struct gpio_chip *chip, unsigned offset, int value)
     mutex_unlock(&xra->lock);
 }
 
-static void xra1405_isr_gsr_complete(void *context)
+/*
+ * \brief Fires nested irqs using cached register values (should be set previously), does not sleep
+ */
+void xra1405_fire_nested_irqs(struct xra1405* xra) {
+    int i;
+
+    for (i = 0; i < xra->chip.ngpio; i++) {
+        /* skip if nested irq is masked (as a consequence, we only look at pins with allocated interrupts) */
+        if (xra->irq_soft_mask & BIT(i)) {
+            continue;
+        }
+
+        /* if ISR shows an interrupt, call the interrupt handler */
+        if (xra->cache[XRA1405_CACHE_ISR] & BIT(i)) {
+            generic_handle_irq(xra->chip.base + i);
+        } else {
+            /* handles where a rising or falling interrupt happens between ISR and GSR read */
+            if (xra->irq_fall_mask & BIT(i) && xra->irq_rise_mask & BIT(i)) {
+                /* we can't say anything if it's both a rising and falling edge interrupt */
+                continue;
+            } else if (xra->irq_rise_mask & BIT(i) && (xra->cache[XRA1405_CACHE_GSR] & BIT(i))) {
+                /* if we missed rising edge it will be high and not masked (by driver that allocated the interrupt) */
+                generic_handle_irq(xra->chip.base + i);
+            } else if (xra->irq_fall_mask & BIT(i) && !(xra->cache[XRA1405_CACHE_GSR] & BIT(i))) {
+                /* if we missed falling edge it will be low and not masked (by driver that allocated the interrupt) */
+                generic_handle_irq(xra->chip.base + i);
+            }
+        }
+    }
+}
+
+/**
+ * \brief Stores LSB of GSR register in cache, calls nested IRQs, and reenables IRQ
+ * Called by SPI read completion asynchronously (by irq handler), cannot sleep
+ */
+static void xra1405_isr_gsr_read_complete(void *context)
 {
     struct xra1405 *xra = context;
-    int i, handled_count = 0;
 
     if (xra->spi_msg.status < 0)
         goto err_data;
 
-    xra->cache[XRA1405_CACHE_GSR] = (xra->rx_buff[1] << 8) | xra->rx_buff[0];
 
-    // printk("ISR: %04X, GSR: %04X\n", xra->cache[XRA1405_CACHE_ISR],
+    /* store values read from SPI read */
+    xra->cache[XRA1405_CACHE_ISR] = xra->rx_buf_async[0];
+    xra->cache[XRA1405_CACHE_ISR] |= (xra->rx_buf_async[1] << 8);
+
+    xra->cache[XRA1405_CACHE_GSR] = xra->rx_buf_async[2];
+    xra->cache[XRA1405_CACHE_GSR] |= (xra->rx_buf_async[3] << 8);
+
+    // printk("ISR: %04X, GSR: %04X\n",
+    //                                 xra->cache[XRA1405_CACHE_ISR],
     //                                 xra->cache[XRA1405_CACHE_GSR]);
 
-    /* Fire any nested IRQ if it is enabled */
-    for (i=0; i < xra->chip.ngpio; i++) {
-        if (BIT(i) & xra->cache[XRA1405_CACHE_ISR] &&
-                !(BIT(i) & xra->irq_soft_mask)) {
-            generic_handle_irq(xra->chip.base + i);
-            handled_count++;
-        }
-    }
+    /* non-blocking call to fire nested irqs using the cached values we just set */
+    xra1405_fire_nested_irqs(xra);
 
     /* Un-mask the IRQ */
     enable_irq(xra->irq);
@@ -398,36 +443,15 @@ static void xra1405_isr_gsr_complete(void *context)
     return;
 
 err_data:
-    enable_irq(xra->irq);
     dev_err(xra->chip.dev,
             "Error during IRQ handler while reading the registers\n");
+    enable_irq(xra->irq);
 }
 
-static void xra1405_isr_complete(void *context)
-{
-    struct xra1405 *xra = context;
-    struct spi_device *spi = xra->data;
 
-    xra->cache[XRA1405_CACHE_ISR] |= (xra->rx_buff[0] << 8);
-    /* Prepare the message to request the register */
-    setup_async_spi(xra, XRA1405_REG_GSR, 2);
-    xra->spi_msg.complete = xra1405_isr_gsr_complete;
-    spi_async(spi, &xra->spi_msg);
-}
-
-static void xra1405_isr_lsb_complete(void *context)
-{
-    struct xra1405 *xra = context;
-    struct spi_device *spi = xra->data;
-
-    xra->cache[XRA1405_CACHE_ISR] = xra->rx_buff[0];
-    /* Prepare the message to request the register */
-    setup_async_spi(xra, XRA1405_REG_ISR_MSB, 1);
-    xra->spi_msg.complete = xra1405_isr_complete;
-    spi_async(spi, &xra->spi_msg);
-}
-
-/* IRQ Related functionality */
+/* \brief IRQ handler
+ * Masks IRQ until reenabled by ISR and GSR registers read completion & nested interrupts sent out
+ */
 static irqreturn_t xra1405_irq(int irq, void *data)
 {
     struct xra1405 *xra = data;
@@ -439,24 +463,25 @@ static irqreturn_t xra1405_irq(int irq, void *data)
     if (xra->shared_irq_time)
         do_gettimeofday(xra->shared_irq_time);
 
-    /* Send the read request for the Interrupt Status Register to identify the
-     * IRQ number, but do not read it until the next read message  */
-    setup_async_spi(xra, XRA1405_REG_ISR, 1);
-    xra->spi_msg.complete = xra1405_isr_lsb_complete;
+    spi_message_init(&xra->spi_msg);
+    xra->spi_msg.context = xra;
+
+    memset(&xra->spi_xfer, 0, sizeof(xra->spi_xfer));
+
+    /* sets up transfers for reading ISR and GSR registers */
+    add_async_spi_read(xra, XRA1405_REG_ISR, 0);
+    add_async_spi_read(xra, XRA1405_REG_ISR_MSB, 1);
+    add_async_spi_read(xra, XRA1405_REG_GSR, 2);
+    add_async_spi_read(xra, XRA1405_REG_GSR_MSB, 3);
+
+    xra->spi_msg.complete = xra1405_isr_gsr_read_complete;
+
     spi_async(spi, &xra->spi_msg);
 
     return IRQ_HANDLED;
 }
 
-#if 0
-static int xra1405_gpio_to_irq(struct gpio_chip *chip, unsigned offset)
-{
-    struct xra1405 *xra = container_of(chip, struct xra1405, chip);
-    return xra->chip.base + offset;
-}
-#endif
-
-static void xra1405_irq_mask (unsigned int irq)
+static void xra1405_irq_mask(unsigned int irq)
 {
     struct xra1405 *xra = (struct xra1405*)get_irq_chip_data(irq);
     unsigned int pos = irq - xra->chip.base;
@@ -465,7 +490,7 @@ static void xra1405_irq_mask (unsigned int irq)
     xra->irq_soft_mask |= BIT(pos);
 }
 
-static void xra1405_irq_unmask (unsigned int irq)
+static void xra1405_irq_unmask(unsigned int irq)
 {
     struct xra1405 *xra = (struct xra1405*)get_irq_chip_data(irq);
     unsigned int pos = irq - xra->chip.base;
@@ -474,37 +499,32 @@ static void xra1405_irq_unmask (unsigned int irq)
     // printk("Unmask %d\n", irq);
 }
 
-static int xra1405_irq_set_type (unsigned int irq, unsigned int type)
+static int xra1405_irq_set_type(unsigned int irq, unsigned int type)
 {
     struct xra1405 *xra = (struct xra1405*)get_irq_chip_data(irq);
     unsigned int pos = irq - xra->chip.base;
     int status = 0;
+    int input_filter = !!(xra->irq_input_filter & BIT(pos));
 
     set_irq_handler(irq, &handle_level_irq);
     if ((type & IRQ_TYPE_EDGE_BOTH) == IRQ_TYPE_EDGE_BOTH) {
         __xra1405_bit(xra, XRA1405_CACHE_FEIR, pos, 1);
         __xra1405_bit(xra, XRA1405_CACHE_REIR, pos, 1);
-        __xra1405_bit(xra, XRA1405_CACHE_IFR, pos, 0);
-        // xra->cache[XRA1405_CACHE_REIR] &= ~BIT(pos);
-        // xra->cache[XRA1405_CACHE_FEIR] &= ~BIT(pos);
+        __xra1405_bit(xra, XRA1405_CACHE_IFR, pos, input_filter);
         xra->irq_rise_mask |= BIT(pos);
         xra->irq_fall_mask |= BIT(pos);
         // printk("Setup %d RISING | FALLING\n", irq);
     } else if (type & IRQ_TYPE_EDGE_RISING) {
         __xra1405_bit(xra, XRA1405_CACHE_FEIR, pos, 0);
         __xra1405_bit(xra, XRA1405_CACHE_REIR, pos, 1);
-        __xra1405_bit(xra, XRA1405_CACHE_IFR, pos, 0);
-        // xra->cache[XRA1405_CACHE_REIR] |= BIT(pos);
-        // xra->cache[XRA1405_CACHE_FEIR] &= ~BIT(pos);
+        __xra1405_bit(xra, XRA1405_CACHE_IFR, pos, input_filter);
         xra->irq_rise_mask |= BIT(pos);
         xra->irq_fall_mask &= ~BIT(pos);
         // printk("Setup %d RISING\n", irq);
     } else if (type & IRQ_TYPE_EDGE_FALLING) {
         __xra1405_bit(xra, XRA1405_CACHE_FEIR, pos, 1);
         __xra1405_bit(xra, XRA1405_CACHE_REIR, pos, 0);
-        __xra1405_bit(xra, XRA1405_CACHE_IFR, pos, 0);
-        // xra->cache[XRA1405_CACHE_FEIR] |= BIT(pos);
-        // xra->cache[XRA1405_CACHE_REIR] &= ~BIT(pos);
+        __xra1405_bit(xra, XRA1405_CACHE_IFR, pos, input_filter);
         xra->irq_rise_mask &= ~BIT(pos);
         xra->irq_fall_mask |= BIT(pos);
         // printk("Setup %d FALLING\n", irq);
@@ -514,15 +534,10 @@ static int xra1405_irq_set_type (unsigned int irq, unsigned int type)
         __xra1405_bit(xra, XRA1405_CACHE_IER, pos, 0);
         __xra1405_bit(xra, XRA1405_CACHE_FEIR, pos, 0);
         __xra1405_bit(xra, XRA1405_CACHE_REIR, pos, 0);
-        __xra1405_bit(xra, XRA1405_CACHE_IFR, pos, 0);
+        __xra1405_bit(xra, XRA1405_CACHE_IFR, pos, input_filter);
 
-        // xra->cache[XRA1405_CACHE_FEIR] &= ~BIT(pos);
-        // xra->cache[XRA1405_CACHE_REIR] &= ~BIT(pos);
         xra->irq_rise_mask &= ~BIT(pos);
         xra->irq_fall_mask &= ~BIT(pos);
-        /* Disable the interrution as well */
-        // xra->cache[XRA1405_CACHE_IER] &= ~BIT(pos);
-        // printk("Setup %d NONE\n", irq);
     } else
         return -EINVAL;
 
@@ -551,7 +566,7 @@ static unsigned int xra1405_irq_startup(unsigned int irq)
 {
     struct xra1405 *xra = (struct xra1405*)get_irq_chip_data(irq);
     unsigned int pos = irq - xra->chip.base;
-    unsigned int irq_was_allocated;
+    unsigned int irq_was_allocated, input_filter;
     int i;
 
     // printk("_startup %u\n", pos);
@@ -565,9 +580,10 @@ static unsigned int xra1405_irq_startup(unsigned int irq)
         for (i = 0; i < xra->chip.ngpio; i++) {
             if (xra->cache[XRA1405_CACHE_GCR] & BIT(i) &&
                                         !(xra->irq_allocated & BIT(i))) {
+                input_filter = !!(xra->irq_input_filter & BIT(i));
                 __xra1405_bit(xra, XRA1405_CACHE_REIR, i, 1);
                 __xra1405_bit(xra, XRA1405_CACHE_FEIR, i, 1);
-                __xra1405_bit(xra, XRA1405_CACHE_IFR, i, 0);
+                __xra1405_bit(xra, XRA1405_CACHE_IFR, i, input_filter);
                 __xra1405_bit(xra, XRA1405_CACHE_IER, i, 1);
             }
         }
@@ -600,7 +616,7 @@ static void xra1405_irq_shutdown(unsigned int irq)
             if (xra->cache[XRA1405_CACHE_GCR] & BIT(i)) {
                 __xra1405_bit(xra, XRA1405_CACHE_REIR, i, 0);
                 __xra1405_bit(xra, XRA1405_CACHE_FEIR, i, 0);
-                __xra1405_bit(xra, XRA1405_CACHE_IFR, i, 0);
+                __xra1405_bit(xra, XRA1405_CACHE_IFR, i, 1);
                 __xra1405_bit(xra, XRA1405_CACHE_IER, i, 0);
             }
         }
@@ -624,7 +640,7 @@ static struct irq_chip xra1405_irq_chip = {
 static int xra1405_irq_setup(struct xra1405 *xra)
 {
     struct gpio_chip *chip = &xra->chip;
-    int err, irq, j;
+    int err, irq, trigger, j;
 
     for (j = 0; j < xra->chip.ngpio; j++) {
         irq = xra->chip.base + j;
@@ -638,8 +654,14 @@ static int xra1405_irq_setup(struct xra1405 *xra)
 #endif
     }
 
+    if (xra->irq_level_trigger) {
+        trigger = IRQF_TRIGGER_LOW;
+    } else {
+        trigger = IRQF_TRIGGER_FALLING;
+    }
+
     err = request_irq(xra->irq, xra1405_irq,
-        IRQF_TRIGGER_LOW | IRQF_DISABLED, XRA1405_MODULE_NAME, xra);
+        trigger | IRQF_DISABLED, XRA1405_MODULE_NAME, xra);
     if (err != 0) {
         dev_err(chip->dev, "unable to request IRQ#%d: %d\n",
                 xra->irq, err);
@@ -719,30 +741,27 @@ static int xra1405_probe_one(struct xra1405 *xra, struct device *dev,
     if (status < 0)
         goto fail;
 
-    /* Configure interrupts at all GPIOs to be falling edge */
-    status = xra1405_write16(xra, XRA1405_REG_FEIR, 0xFFFF);
+    /* Force all polarity inversions to be disabled */
+    status = xra1405_write16(xra, XRA1405_REG_PIR, 0x0000);
     if (status < 0)
         goto fail;
 
-    /* Force all input filter to be enabled by default */
+    /* Force tristate mode on all GPIOs to be disabled */
+    status = xra1405_write16(xra, XRA1405_REG_TSCR, 0x0000);
+    if (status < 0)
+        goto fail;
+
+    /* Force all input filters to be enabled by default */
     status = xra1405_write16(xra, XRA1405_REG_IFR, 0xFFFF);
     if (status < 0)
         goto fail;
 
-    /* Enable interrupts for GPIOs from the Device Tree  */
-    status = xra1405_write16(xra, XRA1405_REG_IER, 0);
+    /* Disable all interrupts on input GPIOs by default */
+    /* If we setup interrupts later we will configure them then */
+    status = xra1405_write16(xra, XRA1405_REG_IER, 0x0000);
     if (status < 0)
         goto fail;
 
-    /* Configure the interrupts that will be generated in the rising edge */
-    status = xra1405_write16(xra, XRA1405_REG_REIR, 0);
-    if (status < 0)
-        goto fail;
-
-    /* Configure the interrupts that will be generated in the falling edge */
-    status = xra1405_write16(xra, XRA1405_REG_FEIR, 0);
-    if (status < 0)
-        goto fail;
 
     /* Read all registers to store them into the cache */
     status = xra1405_cache_regs(xra);
@@ -797,8 +816,11 @@ static int __devinit xra1405_probe(struct spi_device *spi)
 
     /* Set the irq as the same as the SPI irq */
     xra->irq = spi->irq;
-    if (pdata)
+    if (pdata) {
         xra->shared_irq_time = pdata->shared_irq_time;
+        xra->irq_level_trigger = pdata->irq_level_trigger;
+        xra->irq_input_filter = pdata->irq_input_filter;
+    }
 
     /* Register the number of GPIO the chip has */
     xra->chip.ngpio = 16;
@@ -828,8 +850,9 @@ static int __devexit xra1405_remove(struct spi_device *spi)
         xra1405_irq_teardown(xra, 1);
 
     status = gpiochip_remove(&xra->chip);
-    if (status == 0)
+    if (status == 0) {
         kfree(xra);
+    }
 
     return status;
 }
@@ -862,7 +885,8 @@ module_exit(xra1405_exit);
 
 MODULE_ALIAS(MAKE_ALIAS("platform:", XRA1405_MODULE_NAME));
 MODULE_DESCRIPTION("XRA1405 16-bit GPIO expander with an SPI interface");
-MODULE_AUTHOR("Cal Poly Polysat");
+MODULE_AUTHOR("Cal Poly CubeSat Lab");
 MODULE_AUTHOR("Andres Villa <andresvilla@gmail.com>");
+MODULE_AUTHOR("Alex Castellar <alexc96161@gmail.com>");
 MODULE_LICENSE("GPL");
 
