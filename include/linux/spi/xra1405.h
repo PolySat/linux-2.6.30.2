@@ -29,6 +29,11 @@ struct xra1405_platform_data {
      *  provided. Input filtering is enabled when no interrupts are used.
      */
     u16 irq_input_filter;
+
+    /**
+     * "internal_pullups" sets which pins should have internal pull-ups enabled
+     */
+    u16 internal_pullups;
 };
 
 #endif
