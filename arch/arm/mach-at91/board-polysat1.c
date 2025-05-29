@@ -396,7 +396,11 @@ static struct {
 } plat_data_axsem = { AT91_PIN_PC8, AT91_PIN_PC10, AT91_PIN_PB19 };
 
 static struct timeval xra_shared_irq_time;
-static struct xra1405_platform_data plat_data_xra1405 = { 160, &xra_shared_irq_time };
+static struct xra1405_platform_data plat_data_xra1405 = {
+        .base = 160,
+        .shared_irq_time = &xra_shared_irq_time,
+        .internal_pullups = 0xEE00 /* pullups on 6 floating pins 1110 1110 0000 0000 */
+};
 static struct DS3234PlatData plat_data_ds3234 = { 168, &xra_shared_irq_time };
 
 /*
