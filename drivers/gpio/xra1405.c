@@ -115,6 +115,9 @@ struct xra1405 {
     u16         irq_input_filter;
     int         irq_level_trigger;
 
+    /* Pull-up platform data option */
+    u16		internal_pullups;
+
     /* Mutex for xra synchronous reading and writing */
     struct mutex        lock;
 
@@ -717,7 +720,7 @@ static int xra1405_probe_one(struct xra1405 *xra, struct device *dev,
         goto fail;
 
     /* Force all pull-ups to be disabled */
-    status = xra1405_write16(xra, XRA1405_REG_PUR, 0x0000);
+    status = xra1405_write16(xra, XRA1405_REG_PUR, xra->internal_pullups);
     if (status < 0)
         goto fail;
 
@@ -800,6 +803,7 @@ static int __devinit xra1405_probe(struct spi_device *spi)
         xra->shared_irq_time = pdata->shared_irq_time;
         xra->irq_level_trigger = pdata->irq_level_trigger;
         xra->irq_input_filter = pdata->irq_input_filter;
+	xra->internal_pullups = pdata->internal_pullups;
     }
 
     /* Register the number of GPIO the chip has */
