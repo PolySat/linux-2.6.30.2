@@ -424,7 +424,7 @@ static struct spi_board_info r9_xra_spidev = {
 		.chip_select	= 3,
                 .platform_data = &plat_data_xra1405,
                 .controller_data = &spi1_cs3_data,
-		.max_speed_hz	= 16 * 1000 * 1000,
+		.max_speed_hz	= 8 * 1000 * 1000,
 		.bus_num	= 1,
                 .irq = 29, // Handled w/physical IRQ line, IRQ0
 };
