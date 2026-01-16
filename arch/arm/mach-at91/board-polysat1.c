@@ -886,6 +886,10 @@ static struct i2c_board_info __initdata ek_i2c_devices[] = {
 	    I2C_BOARD_INFO("pca9535", 0x77),
 		.platform_data = &pca9535
 	},
+	{
+	    I2C_BOARD_INFO("pi4ioe5", 0x74),
+		.platform_data = &pi4ioe5
+	},
 	/* Now mission specific{
 	    I2C_BOARD_INFO("ov3642", 0x3C),
        .platform_data = NULL
@@ -922,6 +926,10 @@ static struct i2c_board_info __initdata ek_i2c_devices_rev3[] = {
 	    I2C_BOARD_INFO("pca9555", 0x20),
 		.platform_data = &ax5042_pca9535
 	},
+	{
+	    I2C_BOARD_INFO("pi4ioe5", 0x74),
+		.platform_data = &pi4ioe5
+	},
    /*
     *  PCA9550 LED driver on top panel for magnetorquer
     */
@@ -938,16 +946,12 @@ static struct i2c_board_info __initdata ek_i2c_devices_rev3[] = {
 };
 
 
-#if 1
+#if 0
 // Additional PolySat I2C devices.  Cannot be in the same ek_i2c_dev above.
 static struct i2c_board_info __initdata ek_i2c_devices1[] = {
 	{   /* I2C-1 device.  See pins in at91sam9260_devices.c*/
        I2C_BOARD_INFO("i2c-1", 0x00),
-    },
-	{
-	    I2C_BOARD_INFO("pi4ioe5", 0x74),
-		.platform_data = &pi4ioe5
-	},
+   },
 };
 #endif
 
@@ -1104,7 +1108,7 @@ static void __init ek_board_init(void)
       at91_set_GPIO_periph(AT91_PIN_PB29, 1);
       at91_set_GPIO_periph(AT91_PIN_PB30, 1);
 
-	    at91_add_device_i2c(ek_i2c_devices1, ARRAY_SIZE(ek_i2c_devices1));
+	   // at91_add_device_i2c(ek_i2c_devices1, ARRAY_SIZE(ek_i2c_devices1));
    }
    else if (REV4_TEST) {
       printk("*** Rev 4 testing\n\r");
@@ -1163,7 +1167,7 @@ static void __init ek_board_init(void)
    }
    else {
       // Now configured in separate kernel module
-	   at91_add_device_i2c(ek_i2c_devices1, ARRAY_SIZE(ek_i2c_devices1));
+	   // at91_add_device_i2c(ek_i2c_devices1, ARRAY_SIZE(ek_i2c_devices1));
    }
    #endif
 
