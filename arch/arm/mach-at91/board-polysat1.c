@@ -833,11 +833,6 @@ static struct pca953x_platform_data pca9535 = {
 	.invert		= 0,
 };
 
-static struct pca953x_platform_data pi4ioe5 = {
-	.gpio_base	= 300,
-	.invert		= 0,
-};
-
 #if 0
 static int ax5042_setup_nandcs(struct i2c_client *client,
     unsigned gpio, unsigned ngpio, void *context)
@@ -886,10 +881,6 @@ static struct i2c_board_info __initdata ek_i2c_devices[] = {
 	    I2C_BOARD_INFO("pca9535", 0x77),
 		.platform_data = &pca9535
 	},
-	{
-	    I2C_BOARD_INFO("pi4ioe5", 0x74),
-		.platform_data = &pi4ioe5
-	},
 	/* Now mission specific{
 	    I2C_BOARD_INFO("ov3642", 0x3C),
        .platform_data = NULL
@@ -925,10 +916,6 @@ static struct i2c_board_info __initdata ek_i2c_devices_rev3[] = {
 	{
 	    I2C_BOARD_INFO("pca9555", 0x20),
 		.platform_data = &ax5042_pca9535
-	},
-	{
-	    I2C_BOARD_INFO("pi4ioe5", 0x74),
-		.platform_data = &pi4ioe5
 	},
    /*
     *  PCA9550 LED driver on top panel for magnetorquer
