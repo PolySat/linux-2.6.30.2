@@ -1180,7 +1180,7 @@ static void __init ek_board_init(void)
    at91_set_gpio_output(AT91_PIN_PC7, 0);
 
    // Payload I2C device
-	at91_add_device_i2c(ek_i2c_devices_pl, ARRAY_SIZE(ek_i2c_devices_pl));
+	// at91_add_device_i2c(ek_i2c_devices_pl, ARRAY_SIZE(ek_i2c_devices_pl));
 }
 
 MACHINE_START(POLYSAT1, "PolySat Avionics Board, version 1")
