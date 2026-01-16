@@ -46,6 +46,7 @@
 #include <linux/input.h>
 #include <mach/at91sam9_smc.h>
 #include <linux/rtc/ds3234.h>
+#include <linux/i2c.h>
 
 #include "sam9_smc.h"
 #include "generic.h"
@@ -937,6 +938,13 @@ static struct i2c_board_info __initdata ek_i2c_devices_rev3[] = {
 	}, */
 };
 
+static struct i2c_board_info __initdata ek_i2c_devices_11[] = {
+    {
+        I2C_BOARD_INFO("pi4ioe5", 0x74),
+        .platform_data = &pi4ioe5,
+    },
+};
+
 
 #if 0
 // Additional PolySat I2C devices.  Cannot be in the same ek_i2c_dev above.
@@ -952,10 +960,6 @@ static struct i2c_board_info __initdata ek_i2c_devices_pl[] = {
 	{   /* I2C-2 device.  See pins in at91sam9260_devices.c*/
        I2C_BOARD_INFO("i2c-pl", 0x00),
    },
-	{
-	    I2C_BOARD_INFO("pi4ioe5", 0x74),
-		.platform_data = &pi4ioe5
-	},
 };
 
 static void __init ek_board_init(void)
@@ -994,6 +998,8 @@ static void __init ek_board_init(void)
          printk("\n *** 3v3 and 5V0 PL disabled\n\r");
       //}
 	   at91_add_device_i2c(ek_i2c_devices_rev3, ARRAY_SIZE(ek_i2c_devices_rev3));
+	   i2c_register_board_info(1, ek_i2c_devices_11,
+                            ARRAY_SIZE(ek_i2c_devices_11));
 
       // COMM Daughter A uses diff regulator-ready pins b/w Revs
       plat_data_axsem.regRdyIRQ = ax5042_pca9535.gpio_base + 5;
