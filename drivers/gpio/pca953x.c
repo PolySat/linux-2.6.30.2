@@ -38,6 +38,7 @@ static const struct i2c_device_id pca953x_id[] = {
 	{ "pca6107", 8, },
 	{ "tca6408", 8, },
 	{ "tca6416", 16, },
+	{ "pi4ioe5", 16,} // shortened name for p4ioe5v9539Zlex
 	/* NYET:  { "tca6424", 24, }, */
 	{ }
 };
