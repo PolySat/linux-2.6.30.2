@@ -17,6 +17,7 @@
 #include <linux/i2c/pca953x.h>
 
 #include <asm/gpio.h>
+extern int at91_set_gpio_value(unsigned pin, int value); 
 
 #define PCA953X_INPUT          0
 #define PCA953X_OUTPUT         1
@@ -38,7 +39,7 @@ static const struct i2c_device_id pca953x_id[] = {
 	{ "pca6107", 8, },
 	{ "tca6408", 8, },
 	{ "tca6416", 16, },
-	{ "pi4ioe5", 16,} // shortened name for p4ioe5v9539Zlex
+	{ "pi4ioe5", 16,} 
 	/* NYET:  { "tca6424", 24, }, */
 	{ }
 };
@@ -48,9 +49,10 @@ struct pca953x_chip {
 	unsigned gpio_start;
 	uint16_t reg_output;
 	uint16_t reg_direction;
-
 	struct i2c_client *client;
 	struct gpio_chip gpio_chip;
+	uint8_t resettable;
+	uint32_t reset_pin_number;
 };
 
 static int pca953x_write_reg(struct pca953x_chip *chip, int reg, uint16_t val)
@@ -59,11 +61,12 @@ static int pca953x_write_reg(struct pca953x_chip *chip, int reg, uint16_t val)
 
 	if (chip->gpio_chip.ngpio <= 8)
 		ret = i2c_smbus_write_byte_data(chip->client, reg, val);
-	else
+	else 
 		ret = i2c_smbus_write_word_data(chip->client, reg << 1, val);
 
 	if (ret < 0) {
 		dev_err(&chip->client->dev, "failed writing register\n");
+
 		return ret;
 	}
 
@@ -176,6 +179,21 @@ static void pca953x_gpio_set_value(struct gpio_chip *gc, unsigned off, int val)
 	chip->reg_output = reg_val;
 }
 
+static void pca953x_reset(struct pca953x_chip *chip, struct i2c_client *client) {
+	if (chip->resettable) {
+		// sleep for 25ms to allow the chip to reset
+		at91_set_gpio_value(chip->reset_pin_number, 1);
+		ndelay(30);
+		// set the reset pin low to reset the chip
+		at91_set_gpio_value(chip->reset_pin_number, 0);
+		udelay(2);
+		// load cache back to registers
+		pca953x_write_reg(chip, PCA953X_OUTPUT, chip->reg_output);
+		pca953x_write_reg(chip, PCA953X_DIRECTION, chip->reg_direction);
+		pca953x_write_reg(chip, PCA953X_INVERT, chip->reg_invert); 
+	}
+}
+
 static void pca953x_setup_gpio(struct pca953x_chip *chip, int gpios)
 {
 	struct gpio_chip *gc;
@@ -213,8 +231,10 @@ static int __devinit pca953x_probe(struct i2c_client *client,
 		return -ENOMEM;
 
 	chip->client = client;
-
+	chip->resettable = pdata->resettable;
+	chip->reset_pin_number = pdata->reset_pin_number;
 	chip->gpio_start = pdata->gpio_base;
+	chip->reg_invert = pdata->invert;
 
 	/* initialize cached registers from their original values.
 	 * we can't share this chip with another i2c master.
