@@ -10,8 +10,7 @@ struct pca953x_platform_data {
 	uint16_t	invert;
 	void		*context;	/* param to setup/teardown */
 
-	/* accounting for reset pin*/
-	uint8_t resettable;
+	/* accounting for reset pin on pi4ioe5 specific commander*/
 	uint32_t reset_pin_number;
 
 	int		(*setup)(struct i2c_client *client,
