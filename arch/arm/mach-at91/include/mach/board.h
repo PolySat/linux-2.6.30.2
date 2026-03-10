@@ -186,7 +186,7 @@ extern void __init at91_add_device_lcdc(struct atmel_lcdfb_info *data);
 extern void __init at91_add_device_ac97(struct ac97c_platform_data *data);
 
  /* ISI */
-extern void __init at91_add_device_isi(unsigned long dma_phy_addr, unsigned long dma_phy_len);
+extern void at91_add_device_isi(unsigned long dma_phy_addr, unsigned long dma_phy_len);
 extern void at91_set_isi_device_gpio(int gpio);
 
  /* Touchscreen Controller */
