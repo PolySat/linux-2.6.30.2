@@ -237,8 +237,18 @@ static int pca953x_gpio_get_value(struct gpio_chip *gc, unsigned off)
 		 * do unless gpio_*_value_cansleep() calls become different
 		 * from their nonsleeping siblings (and report faults).
 		 */
-		dev_err(&chip->client->dev, "failed reading register\n"); 
-		return 0;
+		if(chip->reset_pin_number){ // if reset pin exists, attempt to reset
+	 		ret = pca953x_reset(chip); 
+			if(ret == -RESET_SETPIN_FAIL){
+				dev_err(&chip->client->dev, "failed setting reset pin\n");
+				return 0 ;
+			} 
+			ret = pca953x_read_reg(chip, PCA953X_INPUT, &reg_val);
+		}
+		if(ret){
+			dev_err(&chip->client->dev, "failed reading register\n"); 
+			return 0;
+		} 
 	}
 
 	return (reg_val & (1u << off)) ? 1 : 0;
