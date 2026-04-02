@@ -56,6 +56,7 @@ struct pca953x_chip {
 	unsigned gpio_start;
 	uint16_t reg_output;
 	uint16_t reg_direction;
+	uint16_t reg_invert;
 	struct i2c_client *client;
 	struct gpio_chip gpio_chip;
 	uint32_t reset_pin_number;  // 0 if not resettable, otherwise pin num
@@ -72,7 +73,8 @@ static int pca953x_write_reg(struct pca953x_chip *chip, int reg, uint16_t val)
 	if (ret < 0) {
 		printk("*** write reg INIT fail; attempt #1 \n\r");
 		// fail to write reg: retry 3 times max
-		int attempts = 1; 
+		int attempts;
+		attempts = 1; 
 		while(ret < 0 && attempts < 3) {
 			if (chip->gpio_chip.ngpio <= 8)
 				ret = i2c_smbus_write_byte_data(chip->client, reg, val);
@@ -101,7 +103,8 @@ static int pca953x_read_reg(struct pca953x_chip *chip, int reg, uint16_t *val)
 
 	if (ret < 0) {
 		printk("*** read reg INIT fail; attempt #1 \n\r");
-		int attempts = 1; 
+		int attempts;
+		attempts = 1; 
 		while(ret < 0 && attempts < 3){
 			// retry 3 times max
 			if (chip->gpio_chip.ngpio <= 8)
@@ -319,7 +322,7 @@ static void pca953x_gpio_set_value(struct gpio_chip *gc, unsigned off, int val)
 		} 
 	}
 	chip->reg_output = reg_val; // only update cache if write successful
-	printk("*** GPIO_SET_VAL: write_reg & [reset passed/not entered]; : OUTPUT reg_val: %d\n\r", reg_val);
+	printk("*** GPIO_SET_VAL: write_reg & [reset passed/not entered]; : OUTPUT reg_val: %u\n\r", reg_val);
 }
 
 static void pca953x_setup_gpio(struct pca953x_chip *chip, int gpios)
