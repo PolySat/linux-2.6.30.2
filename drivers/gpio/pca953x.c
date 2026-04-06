@@ -80,11 +80,11 @@ static int pca953x_write_reg(struct pca953x_chip *chip, int reg, uint16_t val)
 				ret = i2c_smbus_write_byte_data(chip->client, reg, val);
 			else 
 				ret = i2c_smbus_write_word_data(chip->client, reg << 1, val);
-			// printk("*** write reg fail; attempt #%d \n\r", attempts+1);
+			printk("*** write reg fail; attempt #%d \n\r", attempts+1);
 			attempts++;
 		}
 		if(ret){
-			//printk("*** write reg failed pca953x \n\r");
+			printk("*** write reg failed pca953x \n\r");
 			return ret;
 		}
 	}
@@ -111,11 +111,11 @@ static int pca953x_read_reg(struct pca953x_chip *chip, int reg, uint16_t *val)
 				ret = i2c_smbus_read_byte_data(chip->client, reg);
 			else
 				ret = i2c_smbus_read_word_data(chip->client, reg << 1);
-				//printk("*** read reg fail; attempt #%d \n\r", attempts+1);
+				printk("*** read reg fail; attempt #%d \n\r", attempts+1);
 			attempts++;
 		}
 		if(ret < 0) {
-			//printk("*** read reg failed pca953x \n\r");
+			printk("*** read reg failed pca953x \n\r");
 			return ret;
 		}
 	}
@@ -409,6 +409,7 @@ static int __devinit pca953x_probe(struct i2c_client *client,
 	}
 
 	i2c_set_clientdata(client, chip);
+	printk("***** pca953x probe successful  ****");
 	return 0;
 
 	out_failed:
