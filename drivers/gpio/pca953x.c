@@ -369,7 +369,7 @@ static int __devinit pca953x_probe(struct i2c_client *client,
 	/* initialize cached registers from their original values.
 	 * we can't share this chip with another i2c master.
 	 */
-	pca953x_setup_gpio(chip, id->name);
+	pca953x_setup_gpio(chip, id->driver_data);
 
 	if(strncmp(id->name, "pi4ioe5v9539", 12) != 0){
 		// this is NOT a resettable gpio expander, hard set reset_pin_number = 0 (safety)
