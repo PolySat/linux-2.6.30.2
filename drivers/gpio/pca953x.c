@@ -15,13 +15,21 @@
 #include <linux/init.h>
 #include <linux/i2c.h>
 #include <linux/i2c/pca953x.h>
-
+#include <linux/delay.h>
+#include <linux/errno.h>
+  
 #include <asm/gpio.h>
+extern int at91_set_gpio_value(unsigned pin, int value); 
 
 #define PCA953X_INPUT          0
 #define PCA953X_OUTPUT         1
 #define PCA953X_INVERT         2
 #define PCA953X_DIRECTION      3
+
+#define RESET_WRITEREG_FAIL    -1
+#define RESET_SETPIN_FAIL      -2
+#define RESET_READREG_FAIL     -3
+
 
 static const struct i2c_device_id pca953x_id[] = {
 	{ "pca9534", 8, },
@@ -38,6 +46,7 @@ static const struct i2c_device_id pca953x_id[] = {
 	{ "pca6107", 8, },
 	{ "tca6408", 8, },
 	{ "tca6416", 16, },
+	{ "pi4ioe5v9539", 16, },
 	/* NYET:  { "tca6424", 24, }, */
 	{ }
 };
@@ -47,23 +56,37 @@ struct pca953x_chip {
 	unsigned gpio_start;
 	uint16_t reg_output;
 	uint16_t reg_direction;
-
+	uint16_t reg_invert;
 	struct i2c_client *client;
 	struct gpio_chip gpio_chip;
+	uint32_t reset_pin_number;  // 0 if not resettable, otherwise pin num
 };
 
 static int pca953x_write_reg(struct pca953x_chip *chip, int reg, uint16_t val)
 {
 	int ret;
-
 	if (chip->gpio_chip.ngpio <= 8)
 		ret = i2c_smbus_write_byte_data(chip->client, reg, val);
-	else
+	else 
 		ret = i2c_smbus_write_word_data(chip->client, reg << 1, val);
 
 	if (ret < 0) {
-		dev_err(&chip->client->dev, "failed writing register\n");
-		return ret;
+		printk("*** write reg INIT fail; attempt #1 \n\r");
+		// fail to write reg: retry 3 times max
+		int attempts;
+		attempts = 1; 
+		while(ret < 0 && attempts < 3) {
+			if (chip->gpio_chip.ngpio <= 8)
+				ret = i2c_smbus_write_byte_data(chip->client, reg, val);
+			else 
+				ret = i2c_smbus_write_word_data(chip->client, reg << 1, val);
+			printk("*** write reg fail; attempt #%d \n\r", attempts+1);
+			attempts++;
+		}
+		if(ret){
+			printk("*** write reg failed pca953x \n\r");
+			return ret;
+		}
 	}
 
 	return 0;
@@ -79,12 +102,78 @@ static int pca953x_read_reg(struct pca953x_chip *chip, int reg, uint16_t *val)
 		ret = i2c_smbus_read_word_data(chip->client, reg << 1);
 
 	if (ret < 0) {
-		dev_err(&chip->client->dev, "failed reading register\n");
-		return ret;
+		printk("*** read reg INIT fail; attempt #1 \n\r");
+		int attempts;
+		attempts = 1; 
+		while(ret < 0 && attempts < 3){
+			// retry 3 times max
+			if (chip->gpio_chip.ngpio <= 8)
+				ret = i2c_smbus_read_byte_data(chip->client, reg);
+			else
+				ret = i2c_smbus_read_word_data(chip->client, reg << 1);
+				printk("*** read reg fail; attempt #%d \n\r", attempts+1);
+			attempts++;
+		}
+		if(ret < 0) {
+			printk("*** read reg failed pca953x \n\r");
+			return ret;
+		}
 	}
-
-	*val = (uint16_t)ret;
+	if(val){
+		*val = (uint16_t)ret;
+	}
 	return 0;
+}
+
+/* Custom reset() function for pi4ioe5v9539 RESET pin: 
+*	can be called assuming chip->reset_pin_number != 0 (assuming reset pin exists)
+*	Return Codes:
+*	--> return 0: sucess
+*	--> return -RESET_WRITEREG_FAIL: failed write to registers after chip reset
+* 	--> return -RESET_SETPIN_FAIL: fail to set RESET pin
+*/
+static int pca953x_reset(struct pca953x_chip *chip) {
+	printk("*** RESET: entered reset function!!!!\n\r");
+	int ret = 0;
+	// sleep for 25ns to allow the chip to reset
+	ret = at91_set_gpio_value(chip->reset_pin_number, 1); 
+	if(ret) {
+		printk("*** RESET: set pin failed before 1st sleep ret=%d\n\r", ret);
+		return -RESET_SETPIN_FAIL;
+	}
+	ndelay(25); 
+	ret = at91_set_gpio_value(chip->reset_pin_number, 0);
+	if(ret) {
+		printk("*** RESET: set pin failed after 1st sleep ret=%d\n\r", ret);
+		return -RESET_SETPIN_FAIL; 
+	}
+	// sleep for 1 ms to allow the chip to come back up after reset
+	udelay(1);
+
+    // after reset, pi4ioe... should return to default SM - all pins configged as inputs, registers default vals
+	// verify this hardware default was set by checking all bits of direction register configged as input
+	ret = pca953x_read_reg(chip, PCA953X_DIRECTION, NULL);
+	printk("*** RESET: value of PCA953X_DIRECTION register after reset: %x\n\r", ret);
+
+	// load cache back to registers, except input(mirrors hardware)
+	ret = pca953x_write_reg(chip, PCA953X_OUTPUT, chip->reg_output);
+	if(ret<0) {
+		printk("*** RESET: set pin failed after 2nd sleep ret=%d\n\r", ret);
+		return -RESET_WRITEREG_FAIL;
+	}
+	ret = pca953x_write_reg(chip, PCA953X_DIRECTION, chip->reg_direction);
+	if(ret) {
+		printk("*** RESET: write DIRECTION reg failed ret=%d\n\r", ret);
+		return -RESET_WRITEREG_FAIL;
+	}
+	ret = pca953x_write_reg(chip, PCA953X_INVERT, chip->reg_invert); 
+	if(ret) {
+		printk("*** RESET: write INVERT reg failed ret=%d\n\r", ret);
+		return -RESET_WRITEREG_FAIL;
+	}
+	printk("*** RESET: success\n\r");
+	return ret;
+
 }
 
 static int pca953x_gpio_direction_input(struct gpio_chip *gc, unsigned off)
@@ -92,15 +181,28 @@ static int pca953x_gpio_direction_input(struct gpio_chip *gc, unsigned off)
 	struct pca953x_chip *chip;
 	uint16_t reg_val;
 	int ret;
-
 	chip = container_of(gc, struct pca953x_chip, gpio_chip);
-
 	reg_val = chip->reg_direction | (1u << off);
-	ret = pca953x_write_reg(chip, PCA953X_DIRECTION, reg_val);
-	if (ret)
-		return ret;
-
+	ret = pca953x_write_reg(chip, PCA953X_DIRECTION, reg_val); 
+	if (ret){ 
+		if(chip->reset_pin_number){ // if reset pin exists, attempt to reset
+			printk("*** GPIO_DIR_INPUT: fail writing DIR register INIT - RESETTING...\n\r");
+			ret = pca953x_reset(chip); 
+			if(ret == -RESET_SETPIN_FAIL){
+				printk("*** GPIO_DIR_INPUT: fail setting reset pin\n\r");
+				dev_err(&chip->client->dev, "failed setting reset pin\n\r");
+				return ret;
+			} 
+			ret = pca953x_write_reg(chip, PCA953X_DIRECTION, reg_val); 
+		}
+		if(ret){
+			printk("*** GPIO_DIR_INPUT: Complete fail writing DIR register\n\r");
+			dev_err(&chip->client->dev, "failed writing register\n\r");
+			return ret;
+		}
+	}
 	chip->reg_direction = reg_val;
+	printk("*** GPIO_DIR_INPUT: write_reg & [reset passed/not entered]; : DIR reg_val: %x\n\r", reg_val);
 	return 0;
 }
 
@@ -115,13 +217,27 @@ static int pca953x_gpio_direction_output(struct gpio_chip *gc,
 
 	/* set output level */
 	if (val)
-		reg_val = chip->reg_output | (1u << off);
+		reg_val = chip->reg_output | (1u << off); // set the bit
 	else
-		reg_val = chip->reg_output & ~(1u << off);
+		reg_val = chip->reg_output & ~(1u << off); // clear the bit 
 
 	ret = pca953x_write_reg(chip, PCA953X_OUTPUT, reg_val);
 	if (ret)
-		return ret;
+		if(chip->reset_pin_number){ // if reset pin exists, attempt to reset
+			printk("*** GPIO_DIR_OUTPUT: fail writing OUTPUT register INIT - RESETTING...\n\r");
+			ret = pca953x_reset(chip); 
+			if(ret == -RESET_SETPIN_FAIL) {
+				printk("*** GPIO_DIR_OUTPUT: fail setting reset pin post write OUTPUT reg fail\n\r");
+				dev_err(&chip->client->dev, "failed setting reset pin\n");
+				return ret;
+			} 
+			ret = pca953x_write_reg(chip, PCA953X_OUTPUT, reg_val); 
+		}
+		if(ret){
+			printk("*** GPIO_DIR_OUTPUT: Complete fail writing OUTPUT register");
+			dev_err(&chip->client->dev, "failed writing register\n");
+			return ret;
+		} 
 
 	chip->reg_output = reg_val;
 
@@ -129,9 +245,23 @@ static int pca953x_gpio_direction_output(struct gpio_chip *gc,
 	reg_val = chip->reg_direction & ~(1u << off);
 	ret = pca953x_write_reg(chip, PCA953X_DIRECTION, reg_val);
 	if (ret)
-		return ret;
-
+		if(chip->reset_pin_number){ // if reset pin exists, attempt to reset
+			printk("*** GPIO_DIR_OUTPUT: fail writing DIR register INIT - RESETTING...\n\r");
+			ret = pca953x_reset(chip); 
+			if(ret == -RESET_SETPIN_FAIL){
+				printk("*** GPIO_DIR_OUTPUT: fail setting reset pin post write DIR reg fail\n\r");
+				dev_err(&chip->client->dev, "failed setting reset pin\n");
+				return ret;
+			} 
+			ret = pca953x_write_reg(chip, PCA953X_DIRECTION, reg_val); 
+		}
+		if(ret){
+			printk("*** GPIO_DIR_OUTPUT: Complete fail writing DIRECTION register");
+			dev_err(&chip->client->dev, "failed writing register\n");
+			return ret;
+		} 
 	chip->reg_direction = reg_val;
+	printk("*** GPIO_DIR_OUTPUT: write_reg & [reset passed/not entered]; : OUTPUT reg_val %x\t DIR reg_val: %x\n\r", chip->reg_output, chip->reg_direction);
 	return 0;
 }
 
@@ -149,12 +279,27 @@ static int pca953x_gpio_get_value(struct gpio_chip *gc, unsigned off)
 		 * do unless gpio_*_value_cansleep() calls become different
 		 * from their nonsleeping siblings (and report faults).
 		 */
-		return 0;
+		if(chip->reset_pin_number){ // if reset pin exists, attempt to reset
+			printk("*** GPIO_GET_VAL: fail reading INPUT register INIT - RESETTING...\n\r");
+	 		ret = pca953x_reset(chip); 
+			if(ret == -RESET_SETPIN_FAIL){
+				printk("*** GPIO_GET_VAL: fail setting reset pin reg fail\n\r");
+				dev_err(&chip->client->dev, "failed setting reset pin\n");
+				return 0 ;
+			}  
+			ret = pca953x_read_reg(chip, PCA953X_INPUT, &reg_val);
+		}
+		if(ret){
+			printk("*** GPIO_GET_VALUE: Complete fail reading INPUT register");
+			dev_err(&chip->client->dev, "failed reading register\n");
+			return 0;
+		} 
 	}
-
+	printk("*** GPIO_GET_VAL: read_reg & [reset passed/not entered]; ret: %d\t value on pin %d: %d\n\r", ret, off, reg_val & (1u << off)) ? 1 : 0);
 	return (reg_val & (1u << off)) ? 1 : 0;
 }
 
+// return type void. reset fail is handled by dev_err and return
 static void pca953x_gpio_set_value(struct gpio_chip *gc, unsigned off, int val)
 {
 	struct pca953x_chip *chip;
@@ -167,12 +312,26 @@ static void pca953x_gpio_set_value(struct gpio_chip *gc, unsigned off, int val)
 		reg_val = chip->reg_output | (1u << off);
 	else
 		reg_val = chip->reg_output & ~(1u << off);
-
 	ret = pca953x_write_reg(chip, PCA953X_OUTPUT, reg_val);
-	if (ret)
-		return;
-
-	chip->reg_output = reg_val;
+	// if write fails, attempt to reset and write again
+	if (ret){
+		if(chip->reset_pin_number){ // if reset pin exists, attempt to reset
+	 		ret = pca953x_reset(chip); 
+			if(ret == -RESET_SETPIN_FAIL){
+				dev_err(&chip->client->dev, "failed setting reset pin\n");
+				printk("*** GPIO_SET_VAL: reset failed pca953x \n\r");
+				return;
+			} 
+			ret = pca953x_write_reg(chip, PCA953X_OUTPUT, reg_val); 
+		}
+		if(ret){
+			dev_err(&chip->client->dev, "failed writing register\n");
+			printk("*** GPIO_SET_VAL: write reg failed pca953x \n\r");
+			return;
+		} 
+	}
+	chip->reg_output = reg_val; // only update cache if write successful
+	printk("*** GPIO_SET_VAL: write_reg & [reset passed/not entered]; : OUTPUT reg_val: %u\n\r", reg_val);
 }
 
 static void pca953x_setup_gpio(struct pca953x_chip *chip, int gpios)
@@ -212,13 +371,19 @@ static int __devinit pca953x_probe(struct i2c_client *client,
 		return -ENOMEM;
 
 	chip->client = client;
-
+	chip->reset_pin_number = pdata->reset_pin_number;
 	chip->gpio_start = pdata->gpio_base;
+	chip->reg_invert = pdata->invert;
 
 	/* initialize cached registers from their original values.
 	 * we can't share this chip with another i2c master.
 	 */
 	pca953x_setup_gpio(chip, id->driver_data);
+
+	if(strncmp(id->name, "pi4ioe5v9539", 12) != 0){
+		// this is NOT a resettable gpio expander, hard set reset_pin_number = 0 (safety)
+		chip->reset_pin_number = 0;
+	}
 
 	ret = pca953x_read_reg(chip, PCA953X_OUTPUT, &chip->reg_output);
 	if (ret) {
@@ -253,12 +418,13 @@ static int __devinit pca953x_probe(struct i2c_client *client,
 	}
 
 	i2c_set_clientdata(client, chip);
+	printk("***** pca953x probe successful  ****");
 	return 0;
 
-out_failed:
-   printk("*** out failed pca953x \n\r");
-	kfree(chip);
-	return ret;
+	out_failed:
+    	printk("*** out failed pca953x \n\r");
+		kfree(chip);
+		return ret;
 }
 
 static int pca953x_remove(struct i2c_client *client)
@@ -283,7 +449,6 @@ static int pca953x_remove(struct i2c_client *client)
 				"gpiochip_remove()", ret);
 		return ret;
 	}
-
 	kfree(chip);
 	return 0;
 }
